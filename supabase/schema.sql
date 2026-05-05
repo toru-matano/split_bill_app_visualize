@@ -43,3 +43,17 @@ create policy "allow all" on groups for all using (true) with check (true);
 create policy "allow all" on members for all using (true) with check (true);
 create policy "allow all" on expenses for all using (true) with check (true);
 create policy "allow all" on expense_splits for all using (true) with check (true);
+
+-- Phase 3: Multi-currency + categories
+-- Run these ALTER statements in Supabase SQL editor
+
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'other',
+  ADD COLUMN IF NOT EXISTS original_currency text,
+  ADD COLUMN IF NOT EXISTS original_amount numeric,
+  ADD COLUMN IF NOT EXISTS exchange_rate numeric;
+
+-- original_currency: the currency the expense was entered in (e.g. 'USD')
+-- original_amount:   the raw amount in that currency (e.g. 12.50)
+-- exchange_rate:     rate used to convert to group base currency at time of entry
+-- amount:            always the base-currency value used for settlement (unchanged)

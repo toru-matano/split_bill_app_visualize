@@ -1,6 +1,6 @@
 {
-  "name": "Walica — Group Expense Splitter",
-  "short_name": "Walica",
+  "name": "Split Mate — Group Expense Splitter",
+  "short_name": "Split Mate",
   "description": "Split trip expenses with friends. No account needed.",
   "start_url": "/",
   "display": "standalone",
@@ -8,19 +8,8 @@
   "background_color": "#f7f6f3",
   "theme_color": "#1a1a1a",
   "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
-  "categories": ["finance", "utilities"],
-  "screenshots": []
+  "categories": ["finance", "utilities"]
 }

@@ -1,0 +1,13 @@
+{
+  "app": { "name": "Split Mate", "tagline": "친구와 여행 경비를 스마트하게 나눠요.", "taglineSub": "계정 없이 바로 시작." },
+  "home": { "createGroup": "그룹 만들기", "hint": "링크를 공유하면 모두가 비용을 추가할 수 있어요" },
+  "create": { "title": "새 그룹", "groupName": "그룹 이름", "groupNamePlaceholder": "예: 도쿄 여행, 주말 바베큐", "members": "멤버", "memberPlaceholder": "이름 입력 후 Enter", "addMember": "추가", "currency": "기준 통화", "submit": "그룹 만들기 →", "submitting": "생성 중…", "memberHint0": "멤버를 2명 이상 추가하세요", "memberHint1": "1명 더 추가하세요", "memberHintN": "{count}명", "duplicateName": "이미 추가된 이름입니다" },
+  "group": { "totalSpent": "총 지출", "perPerson": "1인당", "members": "멤버", "addExpense": "+ 비용 추가", "settleUp": "정산하기", "expenses": "비용", "viewSummary": "요약 보기 →", "noExpenses": "비용이 없습니다.\n첫 번째를 추가해보세요!", "share": "공유", "edit": "편집", "delete": "삭제", "deleting": "…", "updated": "업데이트됨", "notFound": "그룹을 찾을 수 없습니다", "all": "전체" },
+  "add": { "title": "비용 추가", "category": "카테고리", "label": "무슨 비용인가요?", "labelPlaceholder": "예: 이치란 라멘", "amount": "금액", "paidBy": "결제한 사람", "splitAmong": "나눌 멤버", "splitMode": "나누기 방식", "splitEqual": "균등", "splitAmount": "금액 지정", "splitPercent": "비율(%)", "each": "각자", "save": "저장", "saving": "저장 중…", "conversionHint": "≈ {amount} {currency}", "totalMismatch": "합계가 {total}이 되어야 합니다", "percentMismatch": "합계가 100%가 되어야 합니다" },
+  "edit": { "title": "비용 편집", "save": "변경 저장", "saving": "저장 중…" },
+  "settle": { "title": "정산하기", "calculating": "계산 중…", "allSettled": "모두 정산됐어요!", "allSettledSub": "모두의 잔액이 0입니다.", "transfersNeeded": "{count}건의 이체 필요", "transfersNeededPlural": "{count}건의 이체 필요", "whoPaysWhom": "누가 누구에게 보낼지", "memberBalances": "멤버 잔액", "back": "그룹으로 돌아가기", "balanceChart": "잔액 차트", "netBalance": "순 잔액" },
+  "summary": { "title": "여행 요약", "copy": "복사", "copied": "✓ 복사됨", "byCategory": "카테고리별", "byMember": "각자 지출", "toSettleUp": "정산 내역", "allExpenses": "모든 비용", "copyText": "텍스트로 복사", "copiedText": "✓ 클립보드에 복사됐어요!", "allSettled": "모두 정산됐어요!", "allSettledSub": "모두가 공평하게 냈어요.", "expenseCount": "{count}건", "expenseCountPlural": "{count}건", "perPerson": "1인당 {sym}{amount}" },
+  "share": { "title": "친구 초대", "sub": "'{name}' 참여하려면 스캔 — 계정 불필요", "saveQR": "QR 이미지 저장", "copyLink": "링크 복사", "copied": "✓ 복사됐어요!", "share": "공유", "close": "닫기" },
+  "nav": { "back": "← 뒤로" },
+  "lang": { "label": "언어", "en": "English", "ja": "日本語", "zh": "中文", "ko": "한국어", "fr": "Français", "es": "Español" }
+}

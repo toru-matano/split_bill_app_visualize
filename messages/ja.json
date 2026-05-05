@@ -1,0 +1,117 @@
+{
+  "app": {
+    "name": "Split Mate",
+    "tagline": "旅行の割り勘をスムーズに。",
+    "taglineSub": "アカウント不要。"
+  },
+  "home": {
+    "createGroup": "グループを作成",
+    "hint": "リンクを共有 — 全員が費用を追加できます"
+  },
+  "create": {
+    "title": "新しいグループ",
+    "groupName": "グループ名",
+    "groupNamePlaceholder": "例：東京旅行、週末BBQ",
+    "members": "メンバー",
+    "memberPlaceholder": "名前を入力してEnterキーを押す",
+    "addMember": "追加",
+    "currency": "基本通貨",
+    "submit": "グループを作成 →",
+    "submitting": "作成中…",
+    "memberHint0": "2人以上のメンバーを追加してください",
+    "memberHint1": "あと1人追加してください",
+    "memberHintN": "{count}人のメンバー",
+    "duplicateName": "すでに追加されています"
+  },
+  "group": {
+    "totalSpent": "合計支出",
+    "perPerson": "1人あたり",
+    "members": "メンバー",
+    "addExpense": "+ 費用を追加",
+    "settleUp": "精算する",
+    "expenses": "費用",
+    "viewSummary": "サマリーを見る →",
+    "noExpenses": "まだ費用がありません。\n最初の費用を追加しましょう！",
+    "share": "共有",
+    "edit": "編集",
+    "delete": "削除",
+    "deleting": "…",
+    "updated": "更新済み",
+    "notFound": "グループが見つかりません",
+    "all": "すべて"
+  },
+  "add": {
+    "title": "費用を追加",
+    "category": "カテゴリ",
+    "label": "何の費用ですか？",
+    "labelPlaceholder": "例：一蘭でのディナー",
+    "amount": "金額",
+    "paidBy": "支払った人",
+    "splitAmong": "割り勘する人",
+    "splitMode": "割り勘方法",
+    "splitEqual": "均等",
+    "splitAmount": "金額指定",
+    "splitPercent": "割合（%）",
+    "each": "各自",
+    "save": "保存",
+    "saving": "保存中…",
+    "conversionHint": "≈ {amount} {currency}",
+    "totalMismatch": "合計が{total}になるように入力してください",
+    "percentMismatch": "合計が100%になるように入力してください"
+  },
+  "edit": {
+    "title": "費用を編集",
+    "save": "変更を保存",
+    "saving": "保存中…"
+  },
+  "settle": {
+    "title": "精算する",
+    "calculating": "計算中…",
+    "allSettled": "精算完了！",
+    "allSettledSub": "全員の残高はゼロです。",
+    "transfersNeeded": "{count}件の送金が必要",
+    "transfersNeededPlural": "{count}件の送金が必要",
+    "whoPaysWhom": "誰が誰に支払うか",
+    "memberBalances": "メンバーの残高",
+    "back": "グループに戻る",
+    "balanceChart": "残高グラフ",
+    "netBalance": "純残高"
+  },
+  "summary": {
+    "title": "旅行サマリー",
+    "copy": "コピー",
+    "copied": "✓ コピー済み",
+    "byCategory": "カテゴリ別",
+    "byMember": "各自の支払い",
+    "toSettleUp": "精算内容",
+    "allExpenses": "すべての費用",
+    "copyText": "テキストとしてコピー",
+    "copiedText": "✓ クリップボードにコピーしました！",
+    "allSettled": "精算完了！",
+    "allSettledSub": "全員が公平に支払いました。",
+    "expenseCount": "{count}件の費用",
+    "expenseCountPlural": "{count}件の費用",
+    "perPerson": "1人あたり{sym}{amount}"
+  },
+  "share": {
+    "title": "友達を招待",
+    "sub": "「{name}」に参加するにはスキャン — アカウント不要",
+    "saveQR": "QRコードを保存",
+    "copyLink": "リンクをコピー",
+    "copied": "✓ コピー済み！",
+    "share": "共有",
+    "close": "閉じる"
+  },
+  "nav": {
+    "back": "← 戻る"
+  },
+  "lang": {
+    "label": "言語",
+    "en": "English",
+    "ja": "日本語",
+    "zh": "中文",
+    "ko": "한국어",
+    "fr": "Français",
+    "es": "Español"
+  }
+}

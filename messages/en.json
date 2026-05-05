@@ -1,0 +1,117 @@
+{
+  "app": {
+    "name": "Split Mate",
+    "tagline": "Split trip expenses with friends.",
+    "taglineSub": "No account needed."
+  },
+  "home": {
+    "createGroup": "Create a group",
+    "hint": "Share a link — everyone can add expenses"
+  },
+  "create": {
+    "title": "New group",
+    "groupName": "Group name",
+    "groupNamePlaceholder": "e.g. Tokyo trip, Weekend BBQ",
+    "members": "Members",
+    "memberPlaceholder": "Type a name and press Enter",
+    "addMember": "Add",
+    "currency": "Base currency",
+    "submit": "Create group →",
+    "submitting": "Creating…",
+    "memberHint0": "Add at least 2 members",
+    "memberHint1": "Add at least 1 more",
+    "memberHintN": "{count} members",
+    "duplicateName": "Name already added"
+  },
+  "group": {
+    "totalSpent": "Total spent",
+    "perPerson": "Per person",
+    "members": "Members",
+    "addExpense": "+ Add expense",
+    "settleUp": "Settle up",
+    "expenses": "Expenses",
+    "viewSummary": "View summary →",
+    "noExpenses": "No expenses yet.\nAdd the first one!",
+    "share": "Share",
+    "edit": "Edit",
+    "delete": "Del",
+    "deleting": "…",
+    "updated": "Updated",
+    "notFound": "Group not found",
+    "all": "All"
+  },
+  "add": {
+    "title": "Add expense",
+    "category": "Category",
+    "label": "What was it for?",
+    "labelPlaceholder": "e.g. Dinner at Ichiran",
+    "amount": "Amount",
+    "paidBy": "Paid by",
+    "splitAmong": "Split among",
+    "splitMode": "Split mode",
+    "splitEqual": "Equal",
+    "splitAmount": "By amount",
+    "splitPercent": "By %",
+    "each": "each",
+    "save": "Save expense",
+    "saving": "Saving…",
+    "conversionHint": "≈ {amount} {currency}",
+    "totalMismatch": "Amounts must add up to {total}",
+    "percentMismatch": "Percentages must add up to 100%"
+  },
+  "edit": {
+    "title": "Edit expense",
+    "save": "Save changes",
+    "saving": "Saving…"
+  },
+  "settle": {
+    "title": "Settle up",
+    "calculating": "Calculating…",
+    "allSettled": "All settled!",
+    "allSettledSub": "Everyone's balance is even.",
+    "transfersNeeded": "{count} transfer needed",
+    "transfersNeededPlural": "{count} transfers needed",
+    "whoPaysWhom": "Who pays whom",
+    "memberBalances": "Member balances",
+    "back": "Back to group",
+    "balanceChart": "Balance chart",
+    "netBalance": "Net balance"
+  },
+  "summary": {
+    "title": "Trip summary",
+    "copy": "Copy",
+    "copied": "✓ Copied",
+    "byCategory": "By category",
+    "byMember": "Paid by each person",
+    "toSettleUp": "To settle up",
+    "allExpenses": "All expenses",
+    "copyText": "Copy summary as text",
+    "copiedText": "✓ Copied to clipboard!",
+    "allSettled": "All settled!",
+    "allSettledSub": "Everyone paid their fair share.",
+    "expenseCount": "{count} expense",
+    "expenseCountPlural": "{count} expenses",
+    "perPerson": "{sym}{amount} per person"
+  },
+  "share": {
+    "title": "Invite friends",
+    "sub": "Scan to join \"{name}\" — no account needed",
+    "saveQR": "Save QR image",
+    "copyLink": "Copy link",
+    "copied": "✓ Copied!",
+    "share": "Share",
+    "close": "Close"
+  },
+  "nav": {
+    "back": "← Back"
+  },
+  "lang": {
+    "label": "Language",
+    "en": "English",
+    "ja": "日本語",
+    "zh": "中文",
+    "ko": "한국어",
+    "fr": "Français",
+    "es": "Español"
+  }
+}
