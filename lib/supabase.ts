@@ -5,7 +5,6 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Types
 export type Group = {
   id: string
   name: string
@@ -25,8 +24,12 @@ export type Expense = {
   id: string
   group_id: string
   paid_by: string
-  amount: number
+  amount: number           // always in group base currency
   label: string | null
+  category: string
+  original_currency: string | null
+  original_amount: number | null
+  exchange_rate: number | null
   created_at: string
   member?: Member
 }
