@@ -57,3 +57,35 @@ ALTER TABLE expenses
 -- original_amount:   the raw amount in that currency (e.g. 12.50)
 -- exchange_rate:     rate used to convert to group base currency at time of entry
 -- amount:            always the base-currency value used for settlement (unchanged)
+
+-- Feature: Multiple payers per expense
+-- A new table stores how much each person contributed to paying an expense.
+-- When there's only one payer, a single row is inserted (existing behaviour).
+CREATE TABLE IF NOT EXISTS expense_payers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  expense_id uuid REFERENCES expenses(id) ON DELETE CASCADE,
+  member_id uuid REFERENCES members(id),
+  amount numeric NOT NULL
+);
+ALTER TABLE expense_payers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow all" ON expense_payers FOR ALL USING (true) WITH CHECK (true);
+
+-- The paid_by column on expenses now holds the "primary" payer for display only.
+-- Settlement always uses expense_payers for the actual amounts.
+
+-- Multiple payers support
+-- Each expense can now have multiple payers (expense_payers table)
+-- expense.paid_by is kept for backwards compat display, expense_payers holds the truth
+
+CREATE TABLE IF NOT EXISTS expense_payers (
+  id uuid primary key default gen_random_uuid(),
+  expense_id uuid references expenses(id) on delete cascade,
+  member_id uuid references members(id),
+  amount numeric not null
+);
+
+ALTER TABLE expense_payers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow all" ON expense_payers FOR ALL USING (true) WITH CHECK (true);
+
+-- Group settings: allow renaming and currency change
+-- (no schema change needed — groups table already has name + currency)

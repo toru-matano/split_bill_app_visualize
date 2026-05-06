@@ -57,7 +57,11 @@
     "saving": "Saving…",
     "conversionHint": "≈ {amount} {currency}",
     "totalMismatch": "Amounts must add up to {total}",
-    "percentMismatch": "Percentages must add up to 100%"
+    "percentMismatch": "Percentages must add up to 100%",
+    "paidByMode": "Who paid",
+    "paidBySingle": "One person",
+    "paidByMultiple": "Multiple people",
+    "paidByAmountHint": "Amounts must add up to {total}"
   },
   "edit": {
     "title": "Edit expense",
@@ -113,5 +117,25 @@
     "ko": "한국어",
     "fr": "Français",
     "es": "Español"
+  },
+  "settings": {
+    "title": "Group settings",
+    "groupName": "Group name",
+    "currency": "Base currency",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "saved": "✓ Saved",
+    "members": "Members",
+    "addMember": "Add member",
+    "addMemberPlaceholder": "New member name",
+    "adding": "Adding…",
+    "add": "Add",
+    "duplicateName": "Name already in group",
+    "dangerZone": "Danger zone",
+    "deleteGroup": "Delete group",
+    "confirmDelete": "Type the group name to confirm deletion",
+    "confirmDeletePlaceholder": "Group name",
+    "confirmDeleteBtn": "Delete permanently",
+    "back": "← Back"
   }
 }

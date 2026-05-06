@@ -57,7 +57,11 @@
     "saving": "保存中…",
     "conversionHint": "≈ {amount} {currency}",
     "totalMismatch": "金额之和必须等于{total}",
-    "percentMismatch": "百分比之和必须等于100%"
+    "percentMismatch": "百分比之和必须等于100%",
+    "paidByMode": "付款方式",
+    "paidBySingle": "单人付款",
+    "paidByMultiple": "多人付款",
+    "paidByAmountHint": "金额之和必须等于{total}"
   },
   "edit": {
     "title": "编辑费用",
@@ -113,5 +117,25 @@
     "ko": "한국어",
     "fr": "Français",
     "es": "Español"
+  },
+  "settings": {
+    "title": "群组设置",
+    "groupName": "群组名称",
+    "currency": "基础货币",
+    "save": "保存修改",
+    "saving": "保存中…",
+    "saved": "✓ 已保存",
+    "members": "成员",
+    "addMember": "添加成员",
+    "addMemberPlaceholder": "新成员姓名",
+    "adding": "添加中…",
+    "add": "添加",
+    "duplicateName": "该成员已在群组中",
+    "dangerZone": "危险操作",
+    "deleteGroup": "删除群组",
+    "confirmDelete": "输入群组名称以确认删除",
+    "confirmDeletePlaceholder": "群组名称",
+    "confirmDeleteBtn": "永久删除",
+    "back": "← 返回"
   }
 }

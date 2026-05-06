@@ -57,7 +57,11 @@
     "saving": "保存中…",
     "conversionHint": "≈ {amount} {currency}",
     "totalMismatch": "合計が{total}になるように入力してください",
-    "percentMismatch": "合計が100%になるように入力してください"
+    "percentMismatch": "合計が100%になるように入力してください",
+    "paidByMode": "支払い方法",
+    "paidBySingle": "1人が支払い",
+    "paidByMultiple": "複数人が支払い",
+    "paidByAmountHint": "合計が{total}になるように入力してください"
   },
   "edit": {
     "title": "費用を編集",
@@ -113,5 +117,25 @@
     "ko": "한국어",
     "fr": "Français",
     "es": "Español"
+  },
+  "settings": {
+    "title": "グループ設定",
+    "groupName": "グループ名",
+    "currency": "基本通貨",
+    "save": "変更を保存",
+    "saving": "保存中…",
+    "saved": "✓ 保存済み",
+    "members": "メンバー",
+    "addMember": "メンバーを追加",
+    "addMemberPlaceholder": "新しいメンバー名",
+    "adding": "追加中…",
+    "add": "追加",
+    "duplicateName": "すでにメンバーに追加されています",
+    "dangerZone": "危険な操作",
+    "deleteGroup": "グループを削除",
+    "confirmDelete": "削除を確認するためにグループ名を入力",
+    "confirmDeletePlaceholder": "グループ名",
+    "confirmDeleteBtn": "完全に削除",
+    "back": "← 戻る"
   }
 }

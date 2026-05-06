@@ -92,6 +92,7 @@ export default function GroupPage({ params }: PageProps) {
           </span>
         )}
         <button className="btn btn-ghost" onClick={() => setShowShare(true)} style={{ flexShrink: 0 }}>{t('group.share')}</button>
+        <button className="btn btn-ghost" onClick={() => router.push(`/group/${token}/settings`)} style={{ flexShrink: 0, fontSize: 18, padding: "0 8px" }}>⚙️</button>
         <LangPicker />
       </nav>
 

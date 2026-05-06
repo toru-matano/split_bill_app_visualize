@@ -37,9 +37,13 @@ export default function SummaryPage({ params }: PageProps) {
       const { data: exps } = await supabase.from('expenses').select('*, member:paid_by(id,name)').eq('group_id', grp.id).order('created_at', { ascending: true })
       const expList = (exps as Expense[]) ?? []
       setExpenses(expList)
-      const { data: splits } = await supabase.from('expense_splits').select('*').in('expense_id', expList.map(e => e.id))
+      const expIds = expList.map(e => e.id)
+      const [{ data: payers }, { data: splits }] = await Promise.all([
+        supabase.from('expense_payers').select('member_id, amount').in('expense_id', expIds),
+        supabase.from('expense_splits').select('member_id, amount').in('expense_id', expIds),
+      ])
       const result = calculateSettlement({
-        expenses: expList.map(e => ({ paid_by: e.paid_by, amount: e.amount })),
+        payers: (payers ?? []).map((p: { member_id: string; amount: number }) => ({ member_id: p.member_id, amount: p.amount })),
         splits: (splits ?? []).map((s: { member_id: string; amount: number }) => ({ member_id: s.member_id, amount: s.amount })),
         members: memberList,
       })

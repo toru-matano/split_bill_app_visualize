@@ -23,8 +23,8 @@ export type Member = {
 export type Expense = {
   id: string
   group_id: string
-  paid_by: string
-  amount: number           // always in group base currency
+  paid_by: string           // primary payer id — kept for display fallback
+  amount: number            // total, always in group base currency
   label: string | null
   category: string
   original_currency: string | null
@@ -32,6 +32,13 @@ export type Expense = {
   exchange_rate: number | null
   created_at: string
   member?: Member
+}
+
+export type ExpensePayer = {
+  id: string
+  expense_id: string
+  member_id: string
+  amount: number
 }
 
 export type ExpenseSplit = {

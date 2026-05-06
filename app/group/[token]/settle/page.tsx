@@ -28,20 +28,23 @@ export default function SettlePage({ params }: PageProps) {
       const { data: grp } = await supabase.from('groups').select('*').eq('share_token', token).single()
       if (!grp) { setLoading(false); return }
       setGroup(grp)
-
       const { data: mems } = await supabase.from('members').select('*').eq('group_id', grp.id)
       const memberList: Member[] = mems ?? []
       setMembers(memberList)
 
-      const { data: exps } = await supabase.from('expenses').select('*').eq('group_id', grp.id)
-      const { data: splits } = await supabase.from('expense_splits').select('*')
-        .in('expense_id', (exps ?? []).map((e: { id: string }) => e.id))
+      const { data: exps } = await supabase.from('expenses').select('id').eq('group_id', grp.id)
+      const expIds = (exps ?? []).map((e: { id: string }) => e.id)
 
-      // Compute true net balances (paid - owed per person)
+      const [{ data: payers }, { data: splits }] = await Promise.all([
+        supabase.from('expense_payers').select('member_id, amount').in('expense_id', expIds),
+        supabase.from('expense_splits').select('member_id, amount').in('expense_id', expIds),
+      ])
+
+      // Net balances
       const balances: Record<string, number> = {}
       memberList.forEach(m => { balances[m.id] = 0 });
-      (exps ?? []).forEach((e: { paid_by: string; amount: number }) => {
-        balances[e.paid_by] = (balances[e.paid_by] ?? 0) + Number(e.amount)
+      (payers ?? []).forEach((p: { member_id: string; amount: number }) => {
+        balances[p.member_id] = (balances[p.member_id] ?? 0) + Number(p.amount)
       });
       (splits ?? []).forEach((s: { member_id: string; amount: number }) => {
         balances[s.member_id] = (balances[s.member_id] ?? 0) - Number(s.amount)
@@ -49,7 +52,7 @@ export default function SettlePage({ params }: PageProps) {
       setNetBalances(balances)
 
       const result = calculateSettlement({
-        expenses: (exps ?? []).map((e: { paid_by: string; amount: number }) => ({ paid_by: e.paid_by, amount: e.amount })),
+        payers: (payers ?? []).map((p: { member_id: string; amount: number }) => ({ member_id: p.member_id, amount: p.amount })),
         splits: (splits ?? []).map((s: { member_id: string; amount: number }) => ({ member_id: s.member_id, amount: s.amount })),
         members: memberList,
       })
@@ -59,10 +62,8 @@ export default function SettlePage({ params }: PageProps) {
   }, [token])
 
   const sym = CURRENCY_SYMBOLS[group?.currency ?? 'JPY'] ?? '¥'
-
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p className="text-muted">{t('settle.calculating')}</p></div>
 
-  // Chart data
   const maxAbs = Math.max(...Object.values(netBalances).map(Math.abs), 1)
 
   return (
@@ -75,15 +76,13 @@ export default function SettlePage({ params }: PageProps) {
 
       <div className="container" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* Hero summary */}
         <div className="card" style={{ textAlign: 'center', padding: '28px 20px' }}>
-          {transfers.length === 0 ? (
-            <><div style={{ fontSize: 40, marginBottom: 12 }}>🎉</div><h2 style={{ marginBottom: 6 }}>{t('settle.allSettled')}</h2><p className="text-muted">{t('settle.allSettledSub')}</p></>
-          ) : (
-            <><div style={{ fontSize: 40, marginBottom: 12 }}>💸</div>
-            <h2 style={{ marginBottom: 6 }}>{transfers.length === 1 ? t('settle.transfersNeeded', { count: 1 }) : t('settle.transfersNeededPlural', { count: transfers.length })}</h2>
-            <p className="text-muted">Minimum payments to settle all debts</p></>
-          )}
+          {transfers.length === 0
+            ? <><div style={{ fontSize: 40, marginBottom: 12 }}>🎉</div><h2 style={{ marginBottom: 6 }}>{t('settle.allSettled')}</h2><p className="text-muted">{t('settle.allSettledSub')}</p></>
+            : <><div style={{ fontSize: 40, marginBottom: 12 }}>💸</div>
+               <h2 style={{ marginBottom: 6 }}>{transfers.length === 1 ? t('settle.transfersNeeded', { count: 1 }) : t('settle.transfersNeededPlural', { count: transfers.length })}</h2>
+               <p className="text-muted">Minimum payments to settle all debts</p></>
+          }
         </div>
 
         {/* Balance chart */}
@@ -103,19 +102,9 @@ export default function SettlePage({ params }: PageProps) {
                         {net > 0.5 ? '+' : ''}{sym}{Math.round(net).toLocaleString()}
                       </span>
                     </div>
-                    {/* Diverging bar — centre is 0 */}
                     <div style={{ position: 'relative', height: 10, background: 'var(--surface-3)', borderRadius: 5 }}>
-                      {/* Zero line */}
                       <div style={{ position: 'absolute', left: '50%', top: 0, width: 1, height: '100%', background: 'var(--border-2)', zIndex: 1 }} />
-                      {/* Bar */}
-                      <div style={{
-                        position: 'absolute',
-                        top: 0, height: '100%', borderRadius: 5,
-                        width: `${barWidth / 2}%`,
-                        left: isPositive ? '50%' : `${50 - barWidth / 2}%`,
-                        background: isPositive ? 'var(--success)' : 'var(--danger)',
-                        transition: 'width 0.4s ease',
-                      }} />
+                      <div style={{ position: 'absolute', top: 0, height: '100%', borderRadius: 5, width: `${barWidth / 2}%`, left: isPositive ? '50%' : `${50 - barWidth / 2}%`, background: isPositive ? 'var(--success)' : 'var(--danger)', transition: 'width 0.4s ease' }} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
                       <span style={{ fontSize: 10, color: 'var(--danger)' }}>owes</span>
@@ -128,30 +117,28 @@ export default function SettlePage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Transfer list */}
         {transfers.length > 0 && (
           <div>
             <p className="section-title">{t('settle.whoPaysWhom')}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {transfers.map((t2, i) => (
+              {transfers.map((tr, i) => (
                 <div key={i} className="transfer-item">
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--danger-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: 'var(--danger)', flexShrink: 0 }}>
-                    {t2.fromName.slice(0, 2).toUpperCase()}
+                    {tr.fromName.slice(0, 2).toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 500 }}>{t2.fromName} <span style={{ color: 'var(--ink-3)' }}>→</span> {t2.toName}</p>
+                    <p style={{ fontSize: 13, fontWeight: 500 }}>{tr.fromName} <span style={{ color: 'var(--ink-3)' }}>→</span> {tr.toName}</p>
                   </div>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--success-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: 'var(--success)', flexShrink: 0 }}>
-                    {t2.toName.slice(0, 2).toUpperCase()}
+                    {tr.toName.slice(0, 2).toUpperCase()}
                   </div>
-                  <span className="transfer-amount">{sym}{t2.amount.toLocaleString()}</span>
+                  <span className="transfer-amount">{sym}{tr.amount.toLocaleString()}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Net balances table */}
         <div>
           <p className="section-title">{t('settle.memberBalances')}</p>
           <div className="card" style={{ padding: '4px 20px' }}>
@@ -170,9 +157,7 @@ export default function SettlePage({ params }: PageProps) {
           </div>
         </div>
 
-        <button className="btn btn-secondary" onClick={() => router.push(`/group/${token}`)}>
-          {t('settle.back')}
-        </button>
+        <button className="btn btn-secondary" onClick={() => router.push(`/group/${token}`)}>{t('settle.back')}</button>
       </div>
     </>
   )
