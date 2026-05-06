@@ -6,7 +6,8 @@
   },
   "home": {
     "createGroup": "グループを作成",
-    "hint": "リンクを共有 — 全員が費用を追加できます"
+    "hint": "リンクを共有 — 全員が費用を追加できます",
+    "recentGroups": "最近のグループ"
   },
   "create": {
     "title": "新しいグループ",
@@ -78,11 +79,30 @@
     "whoPaysWhom": "誰が誰に支払うか",
     "memberBalances": "メンバーの残高",
     "back": "グループに戻る",
+    "minimumPayments": "精算に必要な金額",
+    "recordTransfer": "送金を記録",
+    "newTransfer": "新しい送金",
+    "fromWhoPaid": "送金元（支払った人）",
+    "toWhoReceived": "送金先（受け取った人）",
+    "senderReceiverDifferent": "送金元と送金先は異なる必要があります",
+    "amountLabel": "金額",
+    "dateLabel": "日付",
+    "noteLabel": "メモ（任意）",
+    "amountPlaceholder": "0",
+    "notePlaceholder": "例：銀行振込、現金",
+    "cancel": "キャンセル",
+    "saving": "保存中…",
+    "paymentHistory": "支払い履歴（{count}）",
+    "noTransfers": "まだ送金が記録されていません。",
+    "transferRecorded": "送金を記録しました：{from} → {to} {amount}",
+    "confirmDeleteTransfer": "この送金記録を削除しますか？",
+    "owes": "借りている",
+    "getsBack": "返金される",
     "balanceChart": "残高グラフ",
     "netBalance": "純残高"
   },
   "summary": {
-    "title": "旅行サマリー",
+    "title": "サマリー",
     "copy": "コピー",
     "copied": "✓ コピー済み",
     "byCategory": "カテゴリ別",
@@ -99,10 +119,10 @@
   },
   "share": {
     "title": "友達を招待",
-    "sub": "「{name}」に参加するにはスキャン — アカウント不要",
+    "sub": "「{name}」に参加するにはスキャン、またはリンクを共有してください",
     "saveQR": "QRコードを保存",
     "copyLink": "リンクをコピー",
-    "copied": "✓ コピー済み！",
+    "copied": "コピー済み",
     "share": "共有",
     "close": "閉じる"
   },

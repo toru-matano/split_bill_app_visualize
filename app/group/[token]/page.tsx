@@ -36,19 +36,44 @@ export default function GroupPage({ params }: PageProps) {
     setExpenses((exps as Expense[]) ?? [])
   }, [])
 
+  const saveTokenToRecent = (name: string, shareToken: string) => {
+    const recentGroups = JSON.parse(localStorage.getItem('splitmate_recent_groups') || '[]')
+    if (!recentGroups.map((g: any) => g.shareToken).includes(shareToken)) {
+      recentGroups.unshift({ name: name.trim(), shareToken })
+      localStorage.setItem('splitmate_recent_groups', JSON.stringify(recentGroups.slice(0, 5)))
+    }
+  }
+
+  const removeTokenFromRecent = (shareToken: string) => {
+    const recentGroups = JSON.parse(localStorage.getItem('splitmate_recent_groups') || '[]')
+    const updated = recentGroups.filter((g: any) => g.shareToken !== shareToken)
+    localStorage.setItem('splitmate_recent_groups', JSON.stringify(updated))
+  }
+
   const load = useCallback(async (tok: string) => {
     const { data: grp } = await supabase.from('groups').select('*').eq('share_token', tok).single()
-    if (!grp) { setLoading(false); return }
+    if (!grp) {
+      removeTokenFromRecent(tok)
+      setLoading(false)
+      return
+    }
+    
     setGroup(grp)
     groupIdRef.current = grp.id
+    
+    // Update recent groups in localStorage
+    saveTokenToRecent(grp.name, grp.share_token)
+    
     const { data: mems } = await supabase.from('members').select('*').eq('group_id', grp.id)
     setMembers(mems ?? [])
     await loadExpenses(grp.id)
     setLoading(false)
   }, [loadExpenses])
 
-  useEffect(() => { if (token) load(token) }, [token, load])
-
+  useEffect(() => {
+    if (token) load(token)
+  }, [token, load])
+  
   // Realtime
   useEffect(() => {
     if (!groupIdRef.current) return
@@ -172,7 +197,7 @@ export default function GroupPage({ params }: PageProps) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p className="expense-label">{e.label || 'Expense'}</p>
                       <p className="expense-meta">
-                        {payer?.name ?? '—'}
+                        {payer?.name ?? '—'} · {new Date(e.created_at).toISOString().split('T')[0]}
                         {isForeign && (
                           <span style={{ marginLeft: 6, color: 'var(--accent)', fontWeight: 500 }}>
                             · {CURRENCY_SYMBOLS[e.original_currency!] ?? e.original_currency}{Number(e.original_amount).toLocaleString()} {e.original_currency}

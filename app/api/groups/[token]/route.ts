@@ -5,11 +5,11 @@ import { supabase } from '@/lib/supabase'
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
-    const { name, currency } = await req.json()
+    const { name, currency, notifications_enabled } = await req.json()
     if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 })
 
     const { error } = await supabase.from('groups')
-      .update({ name, ...(currency ? { currency } : {}) })
+      .update({ name, ...(currency ? { currency } : {}), ...(notifications_enabled !== undefined ? { notifications_enabled } : {}) })
       .eq('share_token', token)
     if (error) throw error
     return NextResponse.json({ ok: true })

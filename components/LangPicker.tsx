@@ -2,7 +2,7 @@
 import { useI18n, LOCALES, type Locale } from '@/lib/i18n'
 
 const FLAG: Record<Locale, string> = {
-  en: '🇬🇧', ja: '🇯🇵', zh: '🇨🇳', ko: '🇰🇷', fr: '🇫🇷', es: '🇪🇸',
+  en: 'EN', ja: 'JP', zh: 'CN', ko: 'KR', fr: 'FR', es: 'ES',
 }
 
 export default function LangPicker() {

@@ -19,16 +19,15 @@ export default function SettingsPage({ params }: PageProps) {
   const [members, setMembers] = useState<Member[]>([])
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState('JPY')
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [fetching, setFetching] = useState(true)
 
-  // Add member state
   const [newMemberName, setNewMemberName] = useState('')
   const [addingMember, setAddingMember] = useState(false)
   const [memberError, setMemberError] = useState('')
 
-  // Delete group state
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
@@ -41,6 +40,7 @@ export default function SettingsPage({ params }: PageProps) {
       const { data: grp } = await supabase.from('groups').select('*').eq('share_token', token).single()
       if (!grp) { setFetching(false); return }
       setGroup(grp); setName(grp.name); setCurrency(grp.currency)
+      setNotificationsEnabled(grp.notifications_enabled ?? false)
       const { data: mems } = await supabase.from('members').select('*').eq('group_id', grp.id).order('created_at', { ascending: true })
       setMembers(mems ?? [])
       setFetching(false)
@@ -53,7 +53,7 @@ export default function SettingsPage({ params }: PageProps) {
     await fetch(`/api/groups/${token}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), currency }),
+      body: JSON.stringify({ name: name.trim(), currency, notifications_enabled: notificationsEnabled }),
     })
     setGroup(prev => prev ? { ...prev, name: name.trim(), currency } : prev)
     setSaving(false); setSaved(true)
@@ -122,11 +122,34 @@ export default function SettingsPage({ params }: PageProps) {
             </select>
           </div>
 
-          <button
-            className="btn btn-primary"
-            disabled={saving || !name.trim()}
-            onClick={handleSave}
-          >
+          {/* Notifications toggle */}
+          <div>
+            <label style={{ marginBottom: 10, display: 'block' }}>Notifications</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>Expense notifications</p>
+                <p style={{ fontSize: 12, color: 'var(--ink-3)' }}>Show a popup when an expense is added or edited</p>
+              </div>
+              <button
+                onClick={() => setNotificationsEnabled(prev => !prev)}
+                style={{
+                  width: 48, height: 26, borderRadius: 13,
+                  background: notificationsEnabled ? 'var(--success)' : 'var(--surface-3)',
+                  border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0
+                }}
+                aria-label="Toggle notifications"
+              >
+                <div style={{
+                  position: 'absolute', top: 3, width: 20, height: 20, borderRadius: '50%',
+                  background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                  transition: 'left 0.2s',
+                  left: notificationsEnabled ? 25 : 3,
+                }} />
+              </button>
+            </div>
+          </div>
+
+          <button className="btn btn-primary" disabled={saving || !name.trim()} onClick={handleSave}>
             {saved ? t('settings.saved') : saving ? t('settings.saving') : t('settings.save')}
           </button>
         </div>
@@ -141,28 +164,14 @@ export default function SettingsPage({ params }: PageProps) {
                   {m.name.slice(0, 2).toUpperCase()}
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 500, flex: 1 }}>{m.name}</span>
-                <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>
-                  #{i + 1}
-                </span>
+                <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>#{i + 1}</span>
               </div>
             ))}
 
-            {/* Add member row */}
             <div style={{ paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div className="row" style={{ gap: 8 }}>
-                <input
-                  value={newMemberName}
-                  onChange={e => { setNewMemberName(e.target.value); setMemberError('') }}
-                  onKeyDown={e => e.key === 'Enter' && handleAddMember()}
-                  placeholder={t('settings.addMemberPlaceholder')}
-                  className="flex-1"
-                />
-                <button
-                  className="btn btn-secondary"
-                  style={{ width: 'auto', flexShrink: 0 }}
-                  onClick={handleAddMember}
-                  disabled={addingMember || !newMemberName.trim()}
-                >
+                <input value={newMemberName} onChange={e => { setNewMemberName(e.target.value); setMemberError('') }} onKeyDown={e => e.key === 'Enter' && handleAddMember()} placeholder={t('settings.addMemberPlaceholder')} className="flex-1" />
+                <button className="btn btn-secondary" style={{ width: 'auto', flexShrink: 0 }} onClick={handleAddMember} disabled={addingMember || !newMemberName.trim()}>
                   {addingMember ? t('settings.adding') : t('settings.add')}
                 </button>
               </div>
@@ -179,40 +188,19 @@ export default function SettingsPage({ params }: PageProps) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
                   <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>{t('settings.deleteGroup')}</p>
-                  <p style={{ fontSize: 12, color: 'var(--ink-3)' }}>
-                    {members.length} members · {sym} base
-                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--ink-3)' }}>{members.length} members · {sym} base</p>
                 </div>
-                <button
-                  className="btn btn-danger"
-                  style={{ height: 36, padding: '0 16px', fontSize: 13, flexShrink: 0 }}
-                  onClick={() => setShowDelete(true)}
-                >
+                <button className="btn btn-danger" style={{ height: 36, padding: '0 16px', fontSize: 13, flexShrink: 0 }} onClick={() => setShowDelete(true)}>
                   {t('settings.deleteGroup')}
                 </button>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <p style={{ fontSize: 13, color: 'var(--danger)', fontWeight: 500 }}>
-                  {t('settings.confirmDelete')}
-                </p>
-                <input
-                  value={deleteConfirm}
-                  onChange={e => setDeleteConfirm(e.target.value)}
-                  placeholder={t('settings.confirmDeletePlaceholder')}
-                  style={{ borderColor: deleteConfirm && !canDelete ? 'var(--danger)' : undefined }}
-                  autoFocus
-                />
+                <p style={{ fontSize: 13, color: 'var(--danger)', fontWeight: 500 }}>{t('settings.confirmDelete')}</p>
+                <input value={deleteConfirm} onChange={e => setDeleteConfirm(e.target.value)} placeholder={t('settings.confirmDeletePlaceholder')} style={{ borderColor: deleteConfirm && !canDelete ? 'var(--danger)' : undefined }} autoFocus />
                 <div className="row" style={{ gap: 8 }}>
-                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setShowDelete(false); setDeleteConfirm('') }}>
-                    Cancel
-                  </button>
-                  <button
-                    className="btn"
-                    style={{ flex: 1, background: canDelete ? 'var(--danger)' : 'var(--surface-3)', color: canDelete ? 'white' : 'var(--ink-3)', opacity: deleting ? 0.6 : 1, cursor: canDelete ? 'pointer' : 'default', border: 'none' }}
-                    disabled={!canDelete || deleting}
-                    onClick={handleDeleteGroup}
-                  >
+                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setShowDelete(false); setDeleteConfirm('') }}>Cancel</button>
+                  <button className="btn" style={{ flex: 1, background: canDelete ? 'var(--danger)' : 'var(--surface-3)', color: canDelete ? 'white' : 'var(--ink-3)', opacity: deleting ? 0.6 : 1, cursor: canDelete ? 'pointer' : 'default', border: 'none' }} disabled={!canDelete || deleting} onClick={handleDeleteGroup}>
                     {deleting ? '…' : t('settings.confirmDeleteBtn')}
                   </button>
                 </div>

@@ -6,7 +6,8 @@
   },
   "home": {
     "createGroup": "그룹 만들기",
-    "hint": "링크를 공유하면 모두가 비용을 추가할 수 있어요"
+    "hint": "링크를 공유하면 모두가 비용을 추가할 수 있어요",
+    "recentGroups": "최근 그룹"
   },
   "create": {
     "title": "새 그룹",
@@ -78,6 +79,25 @@
     "whoPaysWhom": "누가 누구에게 보낼지",
     "memberBalances": "멤버 잔액",
     "back": "그룹으로 돌아가기",
+    "minimumPayments": "Minimum payments to settle all debts",
+    "recordTransfer": "Record transfer",
+    "newTransfer": "New transfer",
+    "fromWhoPaid": "From (who paid)",
+    "toWhoReceived": "To (who received)",
+    "senderReceiverDifferent": "Sender and receiver must be different",
+    "amountLabel": "Amount",
+    "dateLabel": "Date",
+    "noteLabel": "Note (optional)",
+    "amountPlaceholder": "0",
+    "notePlaceholder": "e.g. Bank transfer, Cash",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "paymentHistory": "Payment history ({count})",
+    "noTransfers": "No transfers recorded yet.",
+    "transferRecorded": "Transfer recorded: {from} → {to} {amount}",
+    "confirmDeleteTransfer": "Delete this transfer record?",
+    "owes": "owes",
+    "getsBack": "gets back",
     "balanceChart": "잔액 차트",
     "netBalance": "순 잔액"
   },

@@ -1,5 +1,6 @@
 'use client'
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import enMessages from '@/messages/en.json'
 
 export const LOCALES = ['en', 'ja', 'zh', 'ko', 'fr', 'es'] as const
 export type Locale = typeof LOCALES[number]
@@ -16,7 +17,7 @@ const MessagesContext = createContext<{
   setLocale: () => {},
 })
 
-const cache: Partial<Record<Locale, Messages>> = {}
+const cache: Partial<Record<Locale, Messages>> = { en: enMessages as Messages }
 
 async function loadMessages(locale: Locale): Promise<Messages> {
   if (cache[locale]) return cache[locale]!
@@ -27,7 +28,7 @@ async function loadMessages(locale: Locale): Promise<Messages> {
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en')
-  const [messages, setMessages] = useState<Messages>({})
+  const [messages, setMessages] = useState<Messages>(enMessages as Messages)
 
   const applyLocale = useCallback(async (l: Locale) => {
     const msgs = await loadMessages(l)
@@ -40,10 +41,12 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const saved = (typeof window !== 'undefined' ? localStorage.getItem('splitmate_locale') : null) as Locale | null
+    if (typeof window === 'undefined') return
+
+    const saved = localStorage.getItem('splitmate_locale') as Locale | null
     const detected = navigator.language.split('-')[0] as Locale
     const initial = (saved && LOCALES.includes(saved)) ? saved : (LOCALES.includes(detected) ? detected : 'en')
-    applyLocale(initial)
+    if (initial !== 'en') Promise.resolve().then(() => applyLocale(initial))
   }, [applyLocale])
 
   const t = useCallback((key: string, vars?: Record<string, string | number>): string => {

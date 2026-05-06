@@ -30,17 +30,16 @@ export async function getRates(baseCurrency: string): Promise<Record<string, num
     return cached.rates
   }
 
+  const url = `https://api.frankfurter.dev/v1/latest?from=${baseCurrency}&to=${SUPPORTED_CURRENCIES.filter(c => c !== baseCurrency).join(',')}`
   try {
-    const res = await fetch(
-      `https://api.frankfurter.app/latest?from=${baseCurrency}&to=${SUPPORTED_CURRENCIES.filter(c => c !== baseCurrency).join(',')}`,
-      { next: { revalidate: 3600 } }
-    )
+    const res = await fetch(url, { next: { revalidate: 3600 } })
     const data = await res.json()
     const rates: Record<string, number> = { [baseCurrency]: 1, ...data.rates }
     cache[baseCurrency] = { rates, fetchedAt: now }
     return rates
-  } catch {
+  } catch (error) {
     // Return identity if fetch fails — better than crashing
+    console.warn(`Failed to fetch exchange rates from ${url}\n— using fallback. Error:`, error)
     return Object.fromEntries(SUPPORTED_CURRENCIES.map(c => [c, 1]))
   }
 }

@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
   try {
-    const { groupId, payers, splitAmong, splitAmounts, label, category, originalCurrency, originalAmount, exchangeRate } = await req.json()
+    const { groupId, payers, splitAmong, splitAmounts, label, category, originalCurrency, originalAmount, exchangeRate, expenseDate } = await req.json()
     if (!groupId || !payers?.length || !splitAmong?.length) return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
 
     const totalAmount = payers.reduce((s: number, p: { amount: number }) => s + Number(p.amount), 0)
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     const { data: expense, error: expError } = await supabase
       .from('expenses')
-      .insert({ group_id: groupId, paid_by: primaryPayer, amount: totalAmount, label, category: category ?? 'other', original_currency: originalCurrency ?? null, original_amount: originalAmount ?? null, exchange_rate: exchangeRate ?? null })
+      .insert({ group_id: groupId, paid_by: primaryPayer, amount: totalAmount, label, category: category ?? 'other', original_currency: originalCurrency ?? null, original_amount: originalAmount ?? null, exchange_rate: exchangeRate ?? null, expense_date: expenseDate ?? null })
       .select().single()
     if (expError) throw expError
 
@@ -38,14 +38,14 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { expenseId, payers, splitAmong, splitAmounts, label, category, originalCurrency, originalAmount, exchangeRate } = await req.json()
+    const { expenseId, payers, splitAmong, splitAmounts, label, category, originalCurrency, originalAmount, exchangeRate, expenseDate } = await req.json()
     if (!expenseId || !payers?.length || !splitAmong?.length) return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
 
     const totalAmount = payers.reduce((s: number, p: { amount: number }) => s + Number(p.amount), 0)
     const primaryPayer = payers[0].memberId
 
     const { error: expError } = await supabase.from('expenses')
-      .update({ paid_by: primaryPayer, amount: totalAmount, label, category: category ?? 'other', original_currency: originalCurrency ?? null, original_amount: originalAmount ?? null, exchange_rate: exchangeRate ?? null })
+      .update({ paid_by: primaryPayer, amount: totalAmount, label, category: category ?? 'other', original_currency: originalCurrency ?? null, original_amount: originalAmount ?? null, exchange_rate: exchangeRate ?? null, expense_date: expenseDate ?? null })
       .eq('id', expenseId)
     if (expError) throw expError
 

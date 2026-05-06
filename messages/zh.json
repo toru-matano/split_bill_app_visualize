@@ -6,7 +6,8 @@
   },
   "home": {
     "createGroup": "创建群组",
-    "hint": "分享链接 — 所有人都可以添加费用"
+    "hint": "分享链接 — 所有人都可以添加费用",
+    "recentGroups": "最近群组"
   },
   "create": {
     "title": "新建群组",
@@ -78,6 +79,25 @@
     "whoPaysWhom": "谁支付给谁",
     "memberBalances": "成员余额",
     "back": "返回群组",
+    "minimumPayments": "Minimum payments to settle all debts",
+    "recordTransfer": "Record transfer",
+    "newTransfer": "New transfer",
+    "fromWhoPaid": "From (who paid)",
+    "toWhoReceived": "To (who received)",
+    "senderReceiverDifferent": "Sender and receiver must be different",
+    "amountLabel": "Amount",
+    "dateLabel": "Date",
+    "noteLabel": "Note (optional)",
+    "amountPlaceholder": "0",
+    "notePlaceholder": "e.g. Bank transfer, Cash",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "paymentHistory": "Payment history ({count})",
+    "noTransfers": "No transfers recorded yet.",
+    "transferRecorded": "Transfer recorded: {from} → {to} {amount}",
+    "confirmDeleteTransfer": "Delete this transfer record?",
+    "owes": "owes",
+    "getsBack": "gets back",
     "balanceChart": "余额图表",
     "netBalance": "净余额"
   },
