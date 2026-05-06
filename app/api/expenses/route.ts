@@ -71,6 +71,10 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { expenseId } = await req.json()
+    // Delete related payers and splits first
+    await supabase.from('expense_payers').delete().eq('expense_id', expenseId)
+    await supabase.from('expense_splits').delete().eq('expense_id', expenseId)
+    // Then delete the expense
     const { error } = await supabase.from('expenses').delete().eq('id', expenseId)
     if (error) throw error
     return NextResponse.json({ ok: true })

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { Member } from '@/lib/supabase'
+import type { Group, Member } from '@/lib/supabase'
 import { CATEGORIES, CATEGORY_KEYS, type CategoryKey } from '@/lib/categories'
 import { getRates, SUPPORTED_CURRENCIES, CURRENCY_SYMBOLS } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
@@ -20,7 +20,7 @@ export default function AddExpensePage({ params }: PageProps) {
   const [members, setMembers] = useState<Member[]>([])
   const [label, setLabel] = useState('')
   const [amount, setAmount] = useState('')
-  const [category, setCategory] = useState<CategoryKey>('other')
+  const [category, setCategory] = useState<CategoryKey>('general')
   const [expCurrency, setExpCurrency] = useState('')
   const [rates, setRates] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
@@ -36,6 +36,12 @@ export default function AddExpensePage({ params }: PageProps) {
   const [equalSet, setEqualSet] = useState<Set<string>>(new Set())
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({})
   const [customPercents, setCustomPercents] = useState<Record<string, string>>({})
+
+  // Calculator state
+  const [showCalculator, setShowCalculator] = useState(false)
+  const [calcDisplay, setCalcDisplay] = useState('0')
+  const [calcMemory, setCalcMemory] = useState<number | null>(null)
+  const [calcOperation, setCalcOperation] = useState<string | null>(null)
 
   useEffect(() => { params.then(p => setToken(p.token)) }, [params])
 
@@ -103,7 +109,7 @@ export default function AddExpensePage({ params }: PageProps) {
   const percentSum = members.reduce((s, m) => s + Number(customPercents[m.id] || 0), 0)
   const amountMismatch = splitMode === 'amount' && effectiveBaseAmount > 0 && Math.abs(amountSum - effectiveBaseAmount) > 0.5
   const percentMismatch = splitMode === 'percent' && Math.abs(percentSum - 100) > 0.5
-  const multiPayerMismatch = payerMode === 'multiple' && payerMode === 'multiple' && multiPayerTotal <= 0
+  const multiPayerMismatch = payerMode === 'multiple' && multiPayerTotal <= 0
 
   const payers = buildPayers()
   const splits = buildSplits()
@@ -112,6 +118,40 @@ export default function AddExpensePage({ params }: PageProps) {
 
   const toggleEqual = (id: string) => setEqualSet(prev => { const next = new Set(prev); if (next.has(id)) { if (next.size === 1) return prev; next.delete(id) } else next.add(id); return next })
   const perPerson = splitMode === 'equal' && equalSet.size > 0 && effectiveBaseAmount > 0 ? effectiveBaseAmount / equalSet.size : 0
+
+  // Calculator functions
+  const calcPress = (value: string) => {
+    if (value === 'C') {
+      setCalcDisplay('0')
+      setCalcMemory(null)
+      setCalcOperation(null)
+    } else if (value === '=') {
+      if (calcMemory !== null && calcOperation) {
+        const current = Number(calcDisplay)
+        let result = 0
+        switch (calcOperation) {
+          case '+': result = calcMemory + current; break
+          case '-': result = calcMemory - current; break
+          case '*': result = calcMemory * current; break
+          case '/': result = calcMemory / current; break
+        }
+        setCalcDisplay(result.toString())
+        setCalcMemory(null)
+        setCalcOperation(null)
+      }
+    } else if (['+', '-', '*', '/'].includes(value)) {
+      setCalcMemory(Number(calcDisplay))
+      setCalcOperation(value)
+      setCalcDisplay('0')
+    } else {
+      setCalcDisplay(calcDisplay === '0' ? value : calcDisplay + value)
+    }
+  }
+
+  const applyCalcResult = () => {
+    setAmount(calcDisplay)
+    setShowCalculator(false)
+  }
 
   const handleSubmit = async () => {
     if (!canSubmit || !group || !payers || !splits) return
@@ -150,27 +190,29 @@ export default function AddExpensePage({ params }: PageProps) {
 
           {/* Category */}
           <div>
-            <label>{t('add.category')}</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              {CATEGORY_KEYS.map(k => { const cat = CATEGORIES[k]; const active = category === k; return (
-                <button key={k} onClick={() => setCategory(k)} style={{ border: `1px solid ${active ? cat.color : 'var(--border-2)'}`, borderRadius: 'var(--radius-sm)', padding: '10px 6px 8px', background: active ? cat.color + '18' : 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, transition: 'all 0.12s' }}>
-                  <span style={{ fontSize: 22 }}>{cat.emoji}</span>
-                  <span style={{ fontSize: 11, fontWeight: 500, color: active ? cat.color : 'var(--ink-3)' }}>{cat.label.split(' ')[0]}</span>
-                </button>
+          <label>{t('add.label')}</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* <label>{t('add.category')}</label> */}
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value as CategoryKey)}
+              style={{ width: 140, minWidth: 140, maxWidth: 180 }}
+            >
+              {CATEGORY_KEYS.map(k => { const cat = CATEGORIES[k]; return (
+                <option key={k} value={k}>{cat.emoji} {cat.label}</option>
               )})}
+            </select>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <input value={label} onChange={e => setLabel(e.target.value)} placeholder={t('add.labelPlaceholder')} autoFocus />
             </div>
           </div>
-
-          {/* Label */}
-          <div>
-            <label>{t('add.label')}</label>
-            <input value={label} onChange={e => setLabel(e.target.value)} placeholder={t('add.labelPlaceholder')} autoFocus />
           </div>
 
           {/* Payer section */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <label style={{ margin: 0 }}>{t('add.paidByMode')}</label>
+
               <div style={{ display: 'flex', border: '1px solid var(--border-2)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
                 {(['single', 'multiple'] as PayerMode[]).map(mode => (
                   <button key={mode} onClick={() => setPayerMode(mode)} style={{ padding: '5px 12px', fontSize: 12, fontWeight: 500, fontFamily: 'inherit', border: 'none', borderRight: mode === 'single' ? '1px solid var(--border-2)' : 'none', cursor: 'pointer', background: payerMode === mode ? 'var(--ink)' : 'var(--surface)', color: payerMode === mode ? 'white' : 'var(--ink-2)', transition: 'all 0.12s' }}>
@@ -189,7 +231,86 @@ export default function AddExpensePage({ params }: PageProps) {
                     <select value={expCurrency} onChange={e => setExpCurrency(e.target.value)} style={{ width: 90, flexShrink: 0 }}>
                       {SUPPORTED_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-                    <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" min="0" step="any" style={{ flex: 1, fontFamily: 'DM Mono, monospace', fontSize: 20, fontWeight: 500 }} />
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" min="0" step="any" style={{ flex: 1, fontFamily: 'DM Mono, monospace', fontSize: 20, fontWeight: 500 }} />
+                      <button
+                        onClick={() => setShowCalculator(!showCalculator)}
+                        style={{
+                          position: 'absolute',
+                          right: 8,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 32,
+                          height: 32,
+                          border: 'none',
+                          background: 'var(--surface-2)',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 18
+                        }}
+                        title="Calculator"
+                      >
+                        🧮
+                      </button>
+                      {showCalculator && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '100%',
+                          right: 0,
+                          zIndex: 1000,
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                          padding: 12,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                          minWidth: 200
+                        }}>
+                          <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 18, textAlign: 'right', padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 4, marginBottom: 8 }}>
+                            {calcDisplay}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginBottom: 8 }}>
+                            {['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', '0', 'C', '=', '+'].map(btn => (
+                              <button
+                                key={btn}
+                                onClick={() => calcPress(btn)}
+                                style={{
+                                  padding: '8px',
+                                  fontSize: 14,
+                                  fontFamily: 'DM Mono, monospace',
+                                  border: '1px solid var(--border-2)',
+                                  borderRadius: 4,
+                                  background: 'var(--surface)',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.1s'
+                                }}
+                                onMouseOver={(e) => e.currentTarget.style.background = 'var(--surface-2)'}
+                                onMouseOut={(e) => e.currentTarget.style.background = 'var(--surface)'}
+                              >
+                                {btn}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={applyCalcResult}
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              background: 'var(--ink)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: 4,
+                              cursor: 'pointer',
+                              fontSize: 14
+                            }}
+                          >
+                            Use Amount
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   {isForeign && baseAmount > 0 && (
                     <p style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 6 }}>
@@ -214,12 +335,14 @@ export default function AddExpensePage({ params }: PageProps) {
                   <div key={m.id} className="check-row" style={{ cursor: 'default' }}>
                     <span style={{ fontSize: 14, color: 'var(--ink)', flex: 1 }}>{m.name}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: 13, color: 'var(--ink-3)' }}>{baseSym}</span>
+                      <select value={expCurrency} onChange={e => setExpCurrency(e.target.value)} style={{ width: 70, height: 32, flexShrink: 0, fontSize: 14}}>
+                        {SUPPORTED_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
                       <input
                         type="number" min="0" step="any"
                         value={multiPayerAmounts[m.id] ?? ''}
                         onChange={e => setMultiPayerAmounts(prev => ({ ...prev, [m.id]: e.target.value }))}
-                        style={{ width: 88, height: 32, textAlign: 'right', fontFamily: 'DM Mono, monospace', fontSize: 13 }}
+                        style={{ width: 150, height: 32, textAlign: 'right', fontFamily: 'DM Mono, monospace', fontSize: 14 }}
                         placeholder="0"
                       />
                     </div>
@@ -275,7 +398,7 @@ export default function AddExpensePage({ params }: PageProps) {
                 {effectiveBaseAmount > 0 && (
                   <div style={{ padding: '8px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}>
                     <span style={{ fontSize: 12, color: amountMismatch ? 'var(--danger)' : 'var(--ink-3)' }}>
-                      {amountMismatch ? t('add.totalMismatch', { total: `${baseSym}${Math.round(effectiveBaseAmount).toLocaleString()}` }) : `${baseSym}${Math.round(amountSum).toLocaleString()} / ${baseSym}${Math.round(effectiveBaseAmount).toLocaleString()}`}
+                      {`${baseSym}${Math.round(amountSum).toLocaleString()} / ${baseSym}${Math.round(effectiveBaseAmount).toLocaleString()}  ` + (amountMismatch ? t('add.totalMismatch', { total: `${baseSym}${Math.round(effectiveBaseAmount - amountSum).toLocaleString()}` }) : '✓')}
                     </span>
                   </div>
                 )}
@@ -296,7 +419,7 @@ export default function AddExpensePage({ params }: PageProps) {
                 )})}
                 <div style={{ padding: '8px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}>
                   <span style={{ fontSize: 12, color: percentMismatch ? 'var(--danger)' : 'var(--success)' }}>
-                    {percentMismatch ? t('add.percentMismatch') : `${percentSum.toFixed(1)}% ✓`}
+                    {`${percentSum.toFixed(1)}%  ` + (percentMismatch ? t('add.percentMismatch') : '✓')}
                   </span>
                 </div>
               </div>

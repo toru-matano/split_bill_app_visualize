@@ -75,8 +75,8 @@ export default function GroupPage({ params }: PageProps) {
   if (!group) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><div style={{ textAlign: 'center' }}><p style={{ fontSize: 32, marginBottom: 12 }}>🔍</p><p className="text-muted">{t('group.notFound')}</p></div></div>
 
   const sym = CURRENCY_SYMBOLS[group.currency] ?? group.currency
-  const total = expenses.reduce((s, e) => s + Number(e.amount), 0)
-  const perPerson = members.length > 0 ? total / members.length : 0
+  // const total = expenses.reduce((s, e) => s + Number(e.amount), 0)
+  // const perPerson = members.length > 0 ? total / members.length : 0
   const shareUrl = typeof window !== 'undefined' ? window.location.href : ''
   const usedCats = [...new Set(expenses.map(e => e.category).filter(Boolean))]
   const filtered = filterCat === 'all' ? expenses : expenses.filter(e => e.category === filterCat)
@@ -99,7 +99,7 @@ export default function GroupPage({ params }: PageProps) {
       <div className="container" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* Stats */}
-        <div className="stat-row">
+        {/* <div className="stat-row">
           <div className="stat-card">
             <p className="stat-label">{t('group.totalSpent')}</p>
             <p className="stat-value">{sym}{Math.round(total).toLocaleString()}</p>
@@ -108,7 +108,7 @@ export default function GroupPage({ params }: PageProps) {
             <p className="stat-label">{t('group.perPerson')}</p>
             <p className="stat-value">{sym}{Math.round(perPerson).toLocaleString()}</p>
           </div>
-        </div>
+        </div> */}
 
         {/* Members */}
         <div>
@@ -123,6 +123,9 @@ export default function GroupPage({ params }: PageProps) {
           <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => router.push(`/group/${token}/add`)}>
             {t('group.addExpense')}
           </button>
+          <button className="btn btn-secondary" style={{ flex: 1, width: 'auto' }} onClick={() => router.push(`/group/${token}/summary`)} disabled={expenses.length === 0}>
+            {t('group.viewSummary')}
+          </button>
           <button className="btn btn-secondary" style={{ flex: 1, width: 'auto' }} onClick={() => router.push(`/group/${token}/settle`)} disabled={expenses.length === 0}>
             {t('group.settleUp')}
           </button>
@@ -135,11 +138,6 @@ export default function GroupPage({ params }: PageProps) {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <p className="section-title" style={{ marginBottom: 0 }}>{t('group.expenses')} ({expenses.length})</p>
-            {expenses.length > 0 && (
-              <button className="btn btn-ghost" style={{ height: 28, fontSize: 11, padding: '0 10px' }} onClick={() => router.push(`/group/${token}/summary`)}>
-                {t('group.viewSummary')}
-              </button>
-            )}
           </div>
 
           {/* Category filter chips */}

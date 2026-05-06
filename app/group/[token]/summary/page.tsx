@@ -123,8 +123,8 @@ export default function SummaryPage({ params }: PageProps) {
           </p>
           <p style={{ fontSize: 14, color: 'var(--ink-2)' }}>
             {expenses.length !== 1 ? t('summary.expenseCountPlural', { count: expenses.length }) : t('summary.expenseCount', { count: 1 })}
-            {' · '}
-            {t('summary.perPerson', { sym, amount: Math.round(total / members.length).toLocaleString() })}
+            {/* {' · '} */}
+            {/* {t('summary.perPerson', { sym, amount: Math.round(total / members.length).toLocaleString() })} */}
           </p>
         </div>
 
@@ -184,7 +184,7 @@ export default function SummaryPage({ params }: PageProps) {
         </div>
 
         {/* Settlements */}
-        <div>
+        {/* <div>
           <p className="section-title">{t('summary.toSettleUp')}</p>
           {transfers.length === 0 ? (
             <div className="card" style={{ textAlign: 'center', padding: 28 }}>
@@ -204,7 +204,7 @@ export default function SummaryPage({ params }: PageProps) {
               ))}
             </div>
           )}
-        </div>
+        </div> */}
 
         {/* Full expense list */}
         <div>

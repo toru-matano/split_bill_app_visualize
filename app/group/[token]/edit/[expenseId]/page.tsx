@@ -9,6 +9,7 @@ import { useI18n } from '@/lib/i18n'
 import LangPicker from '@/components/LangPicker'
 
 type SplitMode = 'equal' | 'amount' | 'percent'
+type PayerMode = 'single' | 'multiple'
 type PageProps = { params: Promise<{ token: string; expenseId: string }> }
 
 export default function EditExpensePage({ params }: PageProps) {
@@ -20,12 +21,25 @@ export default function EditExpensePage({ params }: PageProps) {
   const [members, setMembers] = useState<Member[]>([])
   const [label, setLabel] = useState('')
   const [amount, setAmount] = useState('')
-  const [paidBy, setPaidBy] = useState('')
-  const [category, setCategory] = useState<CategoryKey>('other')
+  // const [paidBy, setPaidBy] = useState('')
+  const [category, setCategory] = useState<CategoryKey>('general')
   const [expCurrency, setExpCurrency] = useState('')
   const [rates, setRates] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
+
+  // Calculator state
+  const [showCalculator, setShowCalculator] = useState(false)
+  const [calcDisplay, setCalcDisplay] = useState('0')
+  const [calcMemory, setCalcMemory] = useState<number | null>(null)
+  const [calcOperation, setCalcOperation] = useState<string | null>(null)
+
+  // Payer state
+  const [payerMode, setPayerMode] = useState<PayerMode>('single')
+  const [singlePayer, setSinglePayer] = useState('')
+  const [multiPayerAmounts, setMultiPayerAmounts] = useState<Record<string, string>>({})
+
+  // Split state
   const [splitMode, setSplitMode] = useState<SplitMode>('equal')
   const [equalSet, setEqualSet] = useState<Set<string>>(new Set())
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({})
@@ -46,11 +60,24 @@ export default function EditExpensePage({ params }: PageProps) {
       if (!exp) { setFetching(false); return }
       setLabel(exp.label ?? '')
       setCategory((exp.category as CategoryKey) ?? 'other')
-      setPaidBy(exp.paid_by)
+      // setPaidBy(exp.paid_by)
       if (exp.original_currency && exp.original_amount) {
         setExpCurrency(exp.original_currency); setAmount(String(exp.original_amount))
       } else {
         setExpCurrency(grp.currency); setAmount(String(exp.amount))
+      }
+      // Load payers
+      const { data: payers } = await supabase.from('expense_payers').select('member_id, amount').eq('expense_id', expenseId)
+      if (payers && payers.length > 0) {
+        if (payers.length === 1) {
+          setPayerMode('single')
+          setSinglePayer(payers[0].member_id)
+        } else {
+          setPayerMode('multiple')
+          const payMap: Record<string, string> = {}
+          payers.forEach(p => payMap[p.member_id] = String(p.amount))
+          setMultiPayerAmounts(payMap)
+        }
       }
       const { data: splits } = await supabase.from('expense_splits').select('member_id, amount').eq('expense_id', expenseId)
       if (splits && splits.length > 0) {
@@ -66,6 +93,11 @@ export default function EditExpensePage({ params }: PageProps) {
         })
         memberList.forEach(m => { if (!amtMap[m.id]) amtMap[m.id] = ''; if (!pctMap[m.id]) pctMap[m.id] = '0' })
         setCustomAmounts(amtMap); setCustomPercents(pctMap)
+        // Detect split mode
+        const splitAmounts = splits.map(s => Number(s.amount)).filter(a => a > 0)
+        if (!(splitAmounts.length > 1 && splitAmounts.every(a => a === splitAmounts[0]))) {
+          setSplitMode('amount')
+        }
       } else {
         const init = new Set(memberList.map(m => m.id)); setEqualSet(init)
         const amtInit: Record<string, string> = {}; const pctInit: Record<string, string> = {}
@@ -79,36 +111,114 @@ export default function EditExpensePage({ params }: PageProps) {
 
   const baseCurrency = group?.currency ?? 'JPY'
   const isForeign = expCurrency !== baseCurrency
+  // For single payer: convert input amount to base
   const baseAmount = isForeign && rates[expCurrency] ? Number(amount) / rates[expCurrency] : Number(amount)
   const baseSym = CURRENCY_SYMBOLS[baseCurrency] ?? baseCurrency
 
-  const computeSplits = () => {
-    if (splitMode === 'equal') { if (equalSet.size === 0) return null; const share = baseAmount / equalSet.size; return Array.from(equalSet).map(id => ({ memberId: id, amount: share })) }
-    if (splitMode === 'amount') { const entries = members.map(m => ({ memberId: m.id, amount: Number(customAmounts[m.id] || 0) })).filter(e => e.amount > 0); return entries.length ? entries : null }
-    if (splitMode === 'percent') { const entries = members.map(m => ({ memberId: m.id, amount: (Number(customPercents[m.id] || 0) / 100) * baseAmount })).filter(e => e.amount > 0.001); return entries.length ? entries : null }
+
+  // Multiple payer total
+  const multiPayerTotal = members.reduce((s, m) => s + Number(multiPayerAmounts[m.id] || 0), 0)
+  const effectiveBaseAmount = payerMode === 'single' ? baseAmount : multiPayerTotal
+
+  // Build payers array
+  const buildPayers = (): { memberId: string; amount: number }[] | null => {
+    if (payerMode === 'single') {
+      if (!singlePayer || baseAmount <= 0) return null
+      return [{ memberId: singlePayer, amount: baseAmount }]
+    }
+    const entries = members.map(m => ({ memberId: m.id, amount: Number(multiPayerAmounts[m.id] || 0) })).filter(e => e.amount > 0)
+    return entries.length > 0 ? entries : null
+  }
+
+  // Build splits array
+  const buildSplits = (): { memberId: string; amount: number }[] | null => {
+    const total = effectiveBaseAmount
+    if (splitMode === 'equal') {
+      if (equalSet.size === 0 || total <= 0) return null
+      const share = total / equalSet.size
+      return Array.from(equalSet).map(id => ({ memberId: id, amount: share }))
+    }
+    if (splitMode === 'amount') {
+      const entries = members.map(m => ({ memberId: m.id, amount: Number(customAmounts[m.id] || 0) })).filter(e => e.amount > 0)
+      return entries.length ? entries : null
+    }
+    if (splitMode === 'percent') {
+      const entries = members.map(m => ({ memberId: m.id, amount: (Number(customPercents[m.id] || 0) / 100) * total })).filter(e => e.amount > 0.001)
+      return entries.length ? entries : null
+    }
     return null
   }
 
   const amountSum = members.reduce((s, m) => s + Number(customAmounts[m.id] || 0), 0)
   const percentSum = members.reduce((s, m) => s + Number(customPercents[m.id] || 0), 0)
-  const amountMismatch = splitMode === 'amount' && baseAmount > 0 && Math.abs(amountSum - baseAmount) > 0.5
+  const amountMismatch = splitMode === 'amount' && effectiveBaseAmount > 0 && Math.abs(amountSum - effectiveBaseAmount) > 0.5
   const percentMismatch = splitMode === 'percent' && Math.abs(percentSum - 100) > 0.5
-  const splits = computeSplits()
-  const canSubmit = !!(label.trim() && Number(amount) > 0 && paidBy && splits && !amountMismatch && !percentMismatch)
+  const multiPayerMismatch = payerMode === 'multiple' && multiPayerTotal <= 0
+
+  const payers = buildPayers()
+  const splits = buildSplits()
+  const canSubmit = !!(label.trim() && Number(amount) > 0 && payers && splits && !amountMismatch && !percentMismatch && !multiPayerMismatch)
 
   const toggleEqual = (id: string) => setEqualSet(prev => { const next = new Set(prev); if (next.has(id)) { if (next.size === 1) return prev; next.delete(id) } else next.add(id); return next })
   const perPerson = splitMode === 'equal' && equalSet.size > 0 && baseAmount > 0 ? baseAmount / equalSet.size : 0
 
+  // Calculator functions
+  const calcPress = (value: string) => {
+    if (value === 'C') {
+      setCalcDisplay('0')
+      setCalcMemory(null)
+      setCalcOperation(null)
+    } else if (value === '=') {
+      if (calcMemory !== null && calcOperation) {
+        const current = Number(calcDisplay)
+        let result = 0
+        switch (calcOperation) {
+          case '+': result = calcMemory + current; break
+          case '-': result = calcMemory - current; break
+          case '*': result = calcMemory * current; break
+          case '/': result = calcMemory / current; break
+        }
+        setCalcDisplay(result.toString())
+        setCalcMemory(null)
+        setCalcOperation(null)
+      }
+    } else if (['+', '-', '*', '/'].includes(value)) {
+      setCalcMemory(Number(calcDisplay))
+      setCalcOperation(value)
+      setCalcDisplay('0')
+    } else {
+      setCalcDisplay(calcDisplay === '0' ? value : calcDisplay + value)
+    }
+  }
+
+  const applyCalcResult = () => {
+    setAmount(calcDisplay)
+    setShowCalculator(false)
+  }
+
   const handleSubmit = async () => {
-    if (!canSubmit || !expenseId || !splits) return
+    if (!canSubmit || !expenseId || !payers || !splits) return
     setLoading(true)
     try {
-      await fetch('/api/expenses', {
+      const res = await fetch('/api/expenses', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expenseId, paidBy, amount: baseAmount, label: label.trim(), splitAmong: splits.map(s => s.memberId), splitAmounts: splits.map(s => s.amount), category, originalCurrency: isForeign ? expCurrency : null, originalAmount: isForeign ? Number(amount) : null, exchangeRate: isForeign ? (1 / (rates[expCurrency] ?? 1)) : null }),
+        body: JSON.stringify({ 
+          expenseId, 
+          payers,
+          splitAmong: splits.map(s => s.memberId), 
+          splitAmounts: splits.map(s => s.amount), 
+          label: label.trim(), category, 
+          originalCurrency: isForeign ? expCurrency : null, 
+          originalAmount: isForeign ? Number(amount) : null, 
+          exchangeRate: isForeign ? (1 / (rates[expCurrency] ?? 1)) : null
+         }),
       })
-      router.push(`/group/${token}`)
+      if (res.ok) {
+        router.push(`/group/${token}`)
+      } else {
+        setLoading(false)
+      }
     } catch { setLoading(false) }
   }
 
@@ -121,50 +231,189 @@ export default function EditExpensePage({ params }: PageProps) {
         <span className="navbar-title">{t('edit.title')}</span>
         <LangPicker />
       </nav>
+
       <div className="container">
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
           {/* Category */}
           <div>
-            <label>{t('add.category')}</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              {CATEGORY_KEYS.map(k => { const cat = CATEGORIES[k]; const active = category === k; return (<button key={k} onClick={() => setCategory(k)} style={{ border: `1px solid ${active ? cat.color : 'var(--border-2)'}`, borderRadius: 'var(--radius-sm)', padding: '10px 6px 8px', background: active ? cat.color + '18' : 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}><span style={{ fontSize: 22 }}>{cat.emoji}</span><span style={{ fontSize: 11, fontWeight: 500, color: active ? cat.color : 'var(--ink-3)' }}>{cat.label.split(' ')[0]}</span></button>) })}
-            </div>
-          </div>
-          {/* Label */}
-          <div>
             <label>{t('add.label')}</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* <label>{t('add.category')}</label> */}
+                <select
+                value={category}
+                onChange={e => setCategory(e.target.value as CategoryKey)}
+                style={{ width: 140, minWidth: 140, maxWidth: 180 }}
+              >
+                {CATEGORY_KEYS.map(k => { const cat = CATEGORIES[k]; return (
+                  <option key={k} value={k}>{cat.emoji} {cat.label}</option>
+                )})}
+              </select>
             <input value={label} onChange={e => setLabel(e.target.value)} placeholder={t('add.labelPlaceholder')} autoFocus />
           </div>
-          {/* Amount + currency */}
+          </div>
+
+          {/* Payer section */}
           <div>
-            <label>{t('add.amount')}</label>
-            <div className="row" style={{ gap: 8 }}>
-              <select value={expCurrency} onChange={e => setExpCurrency(e.target.value)} style={{ width: 90, flexShrink: 0 }}>
-                {SUPPORTED_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" min="0" step="any" style={{ flex: 1, fontFamily: 'DM Mono, monospace', fontSize: 20, fontWeight: 500 }} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <label style={{ margin: 0 }}>{t('add.paidByMode')}</label>
+              <div style={{ display: 'flex', border: '1px solid var(--border-2)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                {(['single', 'multiple'] as PayerMode[]).map(mode => (
+                  <button key={mode} onClick={() => setPayerMode(mode)} style={{ padding: '5px 12px', fontSize: 12, fontWeight: 500, fontFamily: 'inherit', border: 'none', borderRight: mode === 'single' ? '1px solid var(--border-2)' : 'none', cursor: 'pointer', background: payerMode === mode ? 'var(--ink)' : 'var(--surface)', color: payerMode === mode ? 'white' : 'var(--ink-2)', transition: 'all 0.12s' }}>
+                    {mode === 'single' ? t('add.paidBySingle') : t('add.paidByMultiple')}
+                  </button>
+                ))}
+              </div>
             </div>
-            {isForeign && baseAmount > 0 && <p style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 6 }}>≈ {baseSym}{baseAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })} {baseCurrency}</p>}
+
+            {/* Single payer: currency + amount + who */}
+            {payerMode === 'single' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label>{t('add.amount')}</label>
+                  <div className="row" style={{ gap: 8 }}>
+                    <select value={expCurrency} onChange={e => setExpCurrency(e.target.value)} style={{ width: 90, flexShrink: 0 }}>
+                      {SUPPORTED_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" min="0" step="any" style={{ flex: 1, fontFamily: 'DM Mono, monospace', fontSize: 20, fontWeight: 500 }} />
+                      <button
+                        onClick={() => setShowCalculator(!showCalculator)}
+                        style={{
+                          position: 'absolute',
+                          right: 8,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: 24,
+                          height: 24,
+                          border: 'none',
+                          background: 'var(--surface-2)',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 12
+                        }}
+                        title="Calculator"
+                      >
+                        🧮
+                      </button>
+                      {showCalculator && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '100%',
+                          right: 0,
+                          zIndex: 1000,
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                          padding: 12,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                          minWidth: 200
+                        }}>
+                          <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 18, textAlign: 'right', padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 4, marginBottom: 8 }}>
+                            {calcDisplay}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginBottom: 8 }}>
+                            {['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', '0', 'C', '=', '+'].map(btn => (
+                              <button
+                                key={btn}
+                                onClick={() => calcPress(btn)}
+                                style={{
+                                  padding: '8px',
+                                  fontSize: 14,
+                                  fontFamily: 'DM Mono, monospace',
+                                  border: '1px solid var(--border-2)',
+                                  borderRadius: 4,
+                                  background: 'var(--surface)',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.1s'
+                                }}
+                                onMouseOver={(e) => e.currentTarget.style.background = 'var(--surface-2)'}
+                                onMouseOut={(e) => e.currentTarget.style.background = 'var(--surface)'}
+                              >
+                                {btn}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={applyCalcResult}
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              background: 'var(--ink)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: 4,
+                              cursor: 'pointer',
+                              fontSize: 14
+                            }}
+                          >
+                            Use Amount
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                        {isForeign && baseAmount > 0 && (
+                          <p style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 6 }}>
+                            {t('add.conversionHint', { amount: `${baseSym}${baseAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, currency: baseCurrency })}
+                            {rates[expCurrency] ? ` (1 ${expCurrency} = ${(1 / rates[expCurrency]).toFixed(2)} ${baseCurrency})` : ''}
+                          </p>
+                        )}
+                </div>
+                <div>
+                  <label>{t('add.paidBy')}</label>
+                        <select value={singlePayer} onChange={e => setSinglePayer(e.target.value)}>
+                    {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Multiple payers: amount per person in base currency */}
+            {payerMode === 'multiple' && (
+              <div className="card" style={{ padding: '4px 16px' }}>
+                {members.map(m => (
+                  <div key={m.id} className="check-row" style={{ cursor: 'default' }}>
+                    <span style={{ fontSize: 14, color: 'var(--ink)', flex: 1 }}>{m.name}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 13, color: 'var(--ink-3)' }}>{baseSym}</span>
+                      <input
+                        type="number" min="0" step="any"
+                        value={multiPayerAmounts[m.id] ?? ''}
+                        onChange={e => setMultiPayerAmounts(prev => ({ ...prev, [m.id]: e.target.value }))}
+                        style={{ width: 88, height: 32, textAlign: 'right', fontFamily: 'DM Mono, monospace', fontSize: 13 }}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ))}
+                {multiPayerTotal > 0 && (
+                  <div style={{ padding: '8px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                    <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                      Total: {baseSym}{multiPayerTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          {/* Paid by */}
-          <div>
-            <label>{t('add.paidBy')}</label>
-            <select value={paidBy} onChange={e => setPaidBy(e.target.value)}>
-              {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-          </div>
-          {/* Split */}
+
+          {/* Split section */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <label style={{ margin: 0 }}>{t('add.splitAmong')}</label>
               <div style={{ display: 'flex', border: '1px solid var(--border-2)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
                 {(['equal', 'amount', 'percent'] as SplitMode[]).map(mode => (
-                  <button key={mode} onClick={() => setSplitMode(mode)} style={{ padding: '5px 10px', fontSize: 12, fontWeight: 500, fontFamily: 'inherit', border: 'none', borderRight: mode !== 'percent' ? '1px solid var(--border-2)' : 'none', cursor: 'pointer', background: splitMode === mode ? 'var(--ink)' : 'var(--surface)', color: splitMode === mode ? 'white' : 'var(--ink-2)' }}>
+                  <button key={mode} onClick={() => setSplitMode(mode)} style={{ padding: '5px 10px', fontSize: 12, fontWeight: 500, fontFamily: 'inherit', border: 'none', borderRight: mode !== 'percent' ? '1px solid var(--border-2)' : 'none', cursor: 'pointer', background: splitMode === mode ? 'var(--ink)' : 'var(--surface)', color: splitMode === mode ? 'white' : 'var(--ink-2)', transition: 'all 0.12s' }}>
                     {t(`add.split${mode.charAt(0).toUpperCase() + mode.slice(1)}` as 'add.splitEqual')}
                   </button>
                 ))}
               </div>
             </div>
+
             {splitMode === 'equal' && (
               <div className="card" style={{ padding: '4px 16px' }}>
                 {members.map(m => (
@@ -176,6 +425,7 @@ export default function EditExpensePage({ params }: PageProps) {
                 ))}
               </div>
             )}
+
             {splitMode === 'amount' && (
               <div className="card" style={{ padding: '4px 16px' }}>
                 {members.map(m => (
@@ -187,12 +437,19 @@ export default function EditExpensePage({ params }: PageProps) {
                     </div>
                   </div>
                 ))}
-                {baseAmount > 0 && <div style={{ padding: '8px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}><span style={{ fontSize: 12, color: amountMismatch ? 'var(--danger)' : 'var(--ink-3)' }}>{amountMismatch ? t('add.totalMismatch', { total: `${baseSym}${Math.round(baseAmount).toLocaleString()}` }) : `${baseSym}${Math.round(amountSum).toLocaleString()} / ${baseSym}${Math.round(baseAmount).toLocaleString()}`}</span></div>}
+                {effectiveBaseAmount > 0 && (
+                  <div style={{ padding: '8px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                    <span style={{ fontSize: 12, color: amountMismatch ? 'var(--danger)' : 'var(--ink-3)' }}>
+                      {`${baseSym}${Math.round(amountSum).toLocaleString()} / ${baseSym}${Math.round(effectiveBaseAmount).toLocaleString()}  ` + (amountMismatch ? t('add.totalMismatch', { total: `${baseSym}${Math.round(effectiveBaseAmount - amountSum).toLocaleString()}` }) : '✓')}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
+
             {splitMode === 'percent' && (
               <div className="card" style={{ padding: '4px 16px' }}>
-                {members.map(m => { const pct = Number(customPercents[m.id] || 0); const memberAmt = baseAmount > 0 ? (pct / 100) * baseAmount : 0; return (
+                {members.map(m => { const pct = Number(customPercents[m.id] || 0); const memberAmt = effectiveBaseAmount > 0 ? (pct / 100) * effectiveBaseAmount : 0; return (
                   <div key={m.id} className="check-row" style={{ cursor: 'default' }}>
                     <span style={{ fontSize: 14, color: 'var(--ink)', flex: 1 }}>{m.name}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -201,11 +458,16 @@ export default function EditExpensePage({ params }: PageProps) {
                       <span style={{ fontSize: 13, color: 'var(--ink-3)', width: 12 }}>%</span>
                     </div>
                   </div>
-                ) })}
-                <div style={{ padding: '8px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}><span style={{ fontSize: 12, color: percentMismatch ? 'var(--danger)' : 'var(--success)' }}>{percentMismatch ? t('add.percentMismatch') : `${percentSum.toFixed(1)}% ✓`}</span></div>
+                )})}
+                <div style={{ padding: '8px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                  <span style={{ fontSize: 12, color: percentMismatch ? 'var(--danger)' : 'var(--success)' }}>
+                    {`${percentSum.toFixed(1)}%  ` + (percentMismatch ? t('add.percentMismatch') : '✓')}
+                  </span>
+                </div>
               </div>
             )}
           </div>
+
           <button className="btn btn-primary" disabled={!canSubmit || loading} onClick={handleSubmit}>
             {loading ? t('edit.saving') : t('edit.save')}
           </button>

@@ -95,22 +95,25 @@ export default function SettlePage({ params }: PageProps) {
                 const isPositive = net >= 0
                 const barWidth = Math.abs(net) / maxAbs * 100
                 return (
-                  <div key={m.id}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-                      <span style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</span>
-                      <span style={{ fontSize: 13, fontFamily: 'DM Mono, monospace', fontWeight: 600, color: net > 0.5 ? 'var(--success)' : net < -0.5 ? 'var(--danger)' : 'var(--ink-3)' }}>
-                        {net > 0.5 ? '+' : ''}{sym}{Math.round(net).toLocaleString()}
-                      </span>
+                    <div key={m.id}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div className="expense-avatar">{m.name.slice(0, 2).toUpperCase()}</div>
+                          <span style={{ fontSize: 14, fontWeight: 500 }}>{m.name}</span>
+                        </div>
+                        <span style={{ fontSize: 14, fontFamily: 'DM Mono, monospace', fontWeight: 600, color: net > 0.5 ? 'var(--success)' : net < -0.5 ? 'var(--danger)' : 'var(--ink-3)' }}>
+                          {net > 0.5 ? '+' : ''}{sym}{Math.round(net).toLocaleString()}
+                        </span>
+                      </div>
+                      <div style={{ position: 'relative', height: 10, background: 'var(--surface-3)', borderRadius: 5 }}>
+                        <div style={{ position: 'absolute', left: '50%', top: 0, width: 1, height: '100%', background: 'var(--border-2)', zIndex: 1 }} />
+                        <div style={{ position: 'absolute', top: 0, height: '100%', borderRadius: 5, width: `${barWidth / 2}%`, left: isPositive ? '50%' : `${50 - barWidth / 2}%`, background: isPositive ? 'var(--success)' : 'var(--danger)', transition: 'width 0.4s ease' }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                        <span style={{ fontSize: 10, color: 'var(--danger)' }}>owes</span>
+                        <span style={{ fontSize: 10, color: 'var(--success)' }}>gets back</span>
+                      </div>
                     </div>
-                    <div style={{ position: 'relative', height: 10, background: 'var(--surface-3)', borderRadius: 5 }}>
-                      <div style={{ position: 'absolute', left: '50%', top: 0, width: 1, height: '100%', background: 'var(--border-2)', zIndex: 1 }} />
-                      <div style={{ position: 'absolute', top: 0, height: '100%', borderRadius: 5, width: `${barWidth / 2}%`, left: isPositive ? '50%' : `${50 - barWidth / 2}%`, background: isPositive ? 'var(--success)' : 'var(--danger)', transition: 'width 0.4s ease' }} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                      <span style={{ fontSize: 10, color: 'var(--danger)' }}>owes</span>
-                      <span style={{ fontSize: 10, color: 'var(--success)' }}>gets back</span>
-                    </div>
-                  </div>
                 )
               })}
             </div>
@@ -138,24 +141,6 @@ export default function SettlePage({ params }: PageProps) {
             </div>
           </div>
         )}
-
-        <div>
-          <p className="section-title">{t('settle.memberBalances')}</p>
-          <div className="card" style={{ padding: '4px 20px' }}>
-            {members.map(m => {
-              const net = netBalances[m.id] ?? 0
-              return (
-                <div key={m.id} className="expense-item">
-                  <div className="expense-avatar">{m.name.slice(0, 2).toUpperCase()}</div>
-                  <p style={{ fontSize: 14, fontWeight: 500, flex: 1 }}>{m.name}</p>
-                  <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 14, fontWeight: 500, color: net > 0.5 ? 'var(--success)' : net < -0.5 ? 'var(--danger)' : 'var(--ink-3)' }}>
-                    {net > 0.5 ? `+${sym}${Math.round(net).toLocaleString()}` : net < -0.5 ? `-${sym}${Math.round(Math.abs(net)).toLocaleString()}` : `${sym}0`}
-                  </p>
-                </div>
-              )
-            })}
-          </div>
-        </div>
 
         <button className="btn btn-secondary" onClick={() => router.push(`/group/${token}`)}>{t('settle.back')}</button>
       </div>
