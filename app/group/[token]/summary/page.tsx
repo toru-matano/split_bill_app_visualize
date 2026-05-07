@@ -20,6 +20,7 @@ export default function SummaryPage({ params }: PageProps) {
   const [members, setMembers] = useState<Member[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [transfers, setTransfers] = useState<Transfer[]>([])
+  const [netBalances, setNetBalances] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
 
@@ -31,17 +32,30 @@ export default function SummaryPage({ params }: PageProps) {
       const { data: grp } = await supabase.from('groups').select('*').eq('share_token', token).single()
       if (!grp) { setLoading(false); return }
       setGroup(grp)
+
       const { data: mems } = await supabase.from('members').select('*').eq('group_id', grp.id)
       const memberList: Member[] = mems ?? []
       setMembers(memberList)
-      const { data: exps } = await supabase.from('expenses').select('*, member:paid_by(id,name)').eq('group_id', grp.id).order('created_at', { ascending: true })
+
+      const { data: exps } = await supabase
+        .from('expenses').select('*, member:paid_by(id,name)')
+        .eq('group_id', grp.id).order('created_at', { ascending: true })
       const expList = (exps as Expense[]) ?? []
       setExpenses(expList)
+
       const expIds = expList.map(e => e.id)
       const [{ data: payers }, { data: splits }] = await Promise.all([
-        supabase.from('expense_payers').select('member_id, amount').in('expense_id', expIds),
-        supabase.from('expense_splits').select('member_id, amount').in('expense_id', expIds),
+        supabase.from('expense_payers').select('member_id, amount').in('expense_id', expIds.length ? expIds : ['__none__']),
+        supabase.from('expense_splits').select('member_id, amount').in('expense_id', expIds.length ? expIds : ['__none__']),
       ])
+
+      // Compute net balances
+      const bal: Record<string, number> = {}
+      memberList.forEach(m => { bal[m.id] = 0 });
+      (payers ?? []).forEach((p: { member_id: string; amount: number }) => { bal[p.member_id] = (bal[p.member_id] ?? 0) + Number(p.amount) });
+      (splits ?? []).forEach((s: { member_id: string; amount: number }) => { bal[s.member_id] = (bal[s.member_id] ?? 0) - Number(s.amount) })
+      setNetBalances(bal)
+
       const result = calculateSettlement({
         payers: (payers ?? []).map((p: { member_id: string; amount: number }) => ({ member_id: p.member_id, amount: p.amount })),
         splits: (splits ?? []).map((s: { member_id: string; amount: number }) => ({ member_id: s.member_id, amount: s.amount })),
@@ -62,8 +76,7 @@ export default function SummaryPage({ params }: PageProps) {
       `${t('group.totalSpent')}: ${sym}${Math.round(total).toLocaleString()}`,
       `${t('group.members')}: ${members.map(m => m.name).join(', ')}`,
       `${t('group.perPerson')}: ${sym}${Math.round(total / members.length).toLocaleString()}`,
-      ``,
-      `💸 ${t('group.expenses')} (${expenses.length})`,
+      ``, `💸 ${t('group.expenses')} (${expenses.length})`,
     ]
     expenses.forEach(e => {
       const payer = e.member as unknown as Member | null
@@ -77,17 +90,10 @@ export default function SummaryPage({ params }: PageProps) {
       const def = CATEGORIES[cat as keyof typeof CATEGORIES] ?? CATEGORIES.other
       lines.push(`  ${def.emoji} ${def.label}: ${sym}${Math.round(amt).toLocaleString()}`)
     })
-    lines.push(``, `👤 ${t('summary.byMember')}`)
-    members.forEach(m => {
-      const paid = expenses.filter(e => e.paid_by === m.id).reduce((s, e) => s + Number(e.amount), 0)
-      lines.push(`  ${m.name}: ${sym}${Math.round(paid).toLocaleString()}`)
-    })
     if (transfers.length > 0) {
       lines.push(``, `✅ ${t('summary.toSettleUp')}`)
       transfers.forEach(tr => { lines.push(`  ${tr.fromName} → ${tr.toName}: ${sym}${tr.amount.toLocaleString()}`) })
-    } else {
-      lines.push(``, `✅ ${t('summary.allSettled')}`)
-    }
+    } else { lines.push(``, `✅ ${t('summary.allSettled')}`) }
     navigator.clipboard.writeText(lines.join('\n'))
     setCopied(true)
     setTimeout(() => setCopied(false), 2500)
@@ -101,15 +107,19 @@ export default function SummaryPage({ params }: PageProps) {
   const byCat: Record<string, number> = {}
   expenses.forEach(e => { byCat[e.category] = (byCat[e.category] ?? 0) + Number(e.amount) })
   const sortedCats = Object.entries(byCat).sort(([, a], [, b]) => b - a)
-  const byMember: Record<string, number> = {}
-  expenses.forEach(e => { byMember[e.paid_by] = (byMember[e.paid_by] ?? 0) + Number(e.amount) })
+  const maxAbs = Math.max(...Object.values(netBalances).map(Math.abs), 1)
 
   return (
     <>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
       <nav className="navbar">
-        <a className="btn-ghost btn" style={{ width: 'auto', height: 32, cursor: 'pointer' }} onClick={() => router.back()}>{t('nav.back')}</a>
+        <a className="btn-ghost btn" style={{ width: 'auto', height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => router.back()}>
+          <i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> Back
+        </a>
         <span className="navbar-title">{t('summary.title')}</span>
-        <button className="btn btn-ghost" style={{ flexShrink: 0 }} onClick={copyAsText}>{copied ? t('summary.copied') : t('summary.copy')}</button>
+        <button className="btn btn-ghost" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }} onClick={copyAsText}>
+          <i className="fa-solid fa-copy" style={{ fontSize: 13 }} />{copied ? t('summary.copied') : t('summary.copy')}
+        </button>
         <LangPicker />
       </nav>
 
@@ -123,8 +133,6 @@ export default function SummaryPage({ params }: PageProps) {
           </p>
           <p style={{ fontSize: 14, color: 'var(--ink-2)' }}>
             {expenses.length !== 1 ? t('summary.expenseCountPlural', { count: expenses.length }) : t('summary.expenseCount', { count: 1 })}
-            {/* {' · '} */}
-            {/* {t('summary.perPerson', { sym, amount: Math.round(total / members.length).toLocaleString() })} */}
           </p>
         </div>
 
@@ -136,11 +144,12 @@ export default function SummaryPage({ params }: PageProps) {
               {sortedCats.map(([cat, amt]) => {
                 const def = CATEGORIES[cat as keyof typeof CATEGORIES] ?? CATEGORIES.other
                 const pct = total > 0 ? (amt / total) * 100 : 0
+                const catLabel = t(`categories.${cat}`) || def.label
                 return (
                   <div key={cat} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
                       <span style={{ fontSize: 20 }}>{def.emoji}</span>
-                      <span style={{ fontSize: 14, fontWeight: 500, flex: 1 }}>{def.label}</span>
+                      <span style={{ fontSize: 14, fontWeight: 500, flex: 1 }}>{catLabel}</span>
                       <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 14, fontWeight: 500 }}>{sym}{Math.round(amt).toLocaleString()}</span>
                       <span style={{ fontSize: 12, color: 'var(--ink-3)', width: 36, textAlign: 'right' }}>{Math.round(pct)}%</span>
                     </div>
@@ -155,56 +164,66 @@ export default function SummaryPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* By member */}
+        {/* Member balances — each row is a link to their detail page */}
         <div>
           <p className="section-title">{t('summary.byMember')}</p>
           <div className="card" style={{ padding: '4px 20px' }}>
             {members.map(m => {
-              const paid = byMember[m.id] ?? 0
+              const paid = expenses.filter(e => e.paid_by === m.id).reduce((s, e) => s + Number(e.amount), 0)
               const pct = total > 0 ? (paid / total) * 100 : 0
-              const fair = total / members.length
-              const diff = paid - fair
+              const net = netBalances[m.id] ?? 0
+              const barW = Math.abs(net) / maxAbs * 100
+              const isPos = net >= 0
+              const involvedCount = expenses.filter(e =>
+                e.paid_by === m.id
+              ).length
+
               return (
-                <div key={m.id} className="expense-item">
-                  <div className="expense-avatar">{m.name.slice(0, 2).toUpperCase()}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p className="expense-label">{m.name}</p>
-                    <p className="expense-meta">{Math.round(pct)}% of total</p>
+                <div
+                  key={m.id}
+                  onClick={() => router.push(`/group/${token}/member/${m.id}`)}
+                  style={{ padding: '14px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                >
+                  {/* Top row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <div className="expense-avatar">{m.name.slice(0, 2).toUpperCase()}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</p>
+                      <p style={{ fontSize: 11, color: 'var(--ink-3)' }}>
+                        {t('summary.byMember')} {Math.round(pct)}% · {involvedCount} expense{involvedCount !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    {/* Net balance badge */}
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <p style={{
+                        fontFamily: 'DM Mono, monospace', fontSize: 14, fontWeight: 700,
+                        color: net > 0.5 ? 'var(--success)' : net < -0.5 ? 'var(--danger)' : 'var(--ink-3)'
+                      }}>
+                        {net > 0.5 ? '+' : ''}{sym}{Math.round(Math.abs(net)).toLocaleString()}
+                      </p>
+                      <p style={{ fontSize: 10, color: net > 0.5 ? 'var(--success)' : net < -0.5 ? 'var(--danger)' : 'var(--ink-3)' }}>
+                        {net > 0.5 ? t('settle.getsBack') : net < -0.5 ? t('settle.owes') : 'even'}
+                      </p>
+                    </div>
+                    <i className="fa-solid fa-chevron-right" style={{ fontSize: 11, color: 'var(--ink-3)', flexShrink: 0 }} />
                   </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 14, fontWeight: 500 }}>{sym}{Math.round(paid).toLocaleString()}</p>
-                    <p style={{ fontSize: 11, marginTop: 2, color: diff > 0 ? 'var(--success)' : diff < 0 ? 'var(--danger)' : 'var(--ink-3)' }}>
-                      {diff > 0 ? `+${sym}${Math.round(diff).toLocaleString()}` : diff < 0 ? `-${sym}${Math.round(Math.abs(diff)).toLocaleString()}` : 'even'}
-                    </p>
+
+                  {/* Balance bar */}
+                  <div style={{ position: 'relative', height: 6, background: 'var(--surface-3)', borderRadius: 3 }}>
+                    <div style={{ position: 'absolute', left: '50%', top: 0, width: 1, height: '100%', background: 'var(--border-2)', zIndex: 1 }} />
+                    <div style={{
+                      position: 'absolute', top: 0, height: '100%', borderRadius: 3,
+                      width: `${barW / 2}%`,
+                      left: isPos ? '50%' : `${50 - barW / 2}%`,
+                      background: isPos ? 'var(--success)' : 'var(--danger)',
+                      transition: 'width 0.4s ease',
+                    }} />
                   </div>
                 </div>
               )
             })}
           </div>
         </div>
-
-        {/* Settlements */}
-        {/* <div>
-          <p className="section-title">{t('summary.toSettleUp')}</p>
-          {transfers.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', padding: 28 }}>
-              <span style={{ fontSize: 32 }}>🎉</span>
-              <p style={{ marginTop: 8, fontWeight: 500 }}>{t('summary.allSettled')}</p>
-              <p className="text-muted">{t('summary.allSettledSub')}</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {transfers.map((tr, i) => (
-                <div key={i} className="transfer-item">
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>{tr.fromName}</span>
-                  <span className="transfer-arrow">→</span>
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>{tr.toName}</span>
-                  <span className="transfer-amount">{sym}{tr.amount.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div> */}
 
         {/* Full expense list */}
         <div>

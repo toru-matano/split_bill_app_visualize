@@ -39,7 +39,20 @@
     "deleting": "…",
     "updated": "Updated",
     "notFound": "Group not found",
-    "all": "All"
+    "all": "All",
+    "deleteConfirmTitle": "Delete expense?",
+    "deleteConfirmMsg": "This will permanently remove this expense.",
+    "deleteConfirmBtn": "Delete",
+    "deleteCancel": "Cancel"
+  },
+  "categories": {
+    "general": "General",
+    "food": "Food",
+    "transport": "Transport",
+    "hotel": "Hotel",
+    "activities": "Activities",
+    "shopping": "Shopping",
+    "other": "Other"
   },
   "add": {
     "title": "Add expense",

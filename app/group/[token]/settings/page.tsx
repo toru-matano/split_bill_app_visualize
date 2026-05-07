@@ -6,6 +6,7 @@ import type { Group, Member } from '@/lib/supabase'
 import { CURRENCY_SYMBOLS, SUPPORTED_CURRENCIES } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
 import LangPicker from '@/components/LangPicker'
+import PushToggle from '@/components/PushToggle'
 
 type PageProps = { params: Promise<{ token: string }> }
 
@@ -98,8 +99,9 @@ export default function SettingsPage({ params }: PageProps) {
 
   return (
     <>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
       <nav className="navbar">
-        <a className="btn-ghost btn" style={{ width: 'auto', height: 32, cursor: 'pointer' }} onClick={() => router.back()}>{t('settings.back')}</a>
+        <a className="btn-ghost btn" style={{ width: 'auto', height: 32, cursor: 'pointer' }} onClick={() => router.back()}><i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> {t('settings.back').replace('← ', '')}</a>
         <span className="navbar-title">{t('settings.title')}</span>
         <LangPicker />
       </nav>
@@ -122,32 +124,13 @@ export default function SettingsPage({ params }: PageProps) {
             </select>
           </div>
 
-          {/* Notifications toggle */}
-          <div>
-            <label style={{ marginBottom: 10, display: 'block' }}>Notifications</label>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>Expense notifications</p>
-                <p style={{ fontSize: 12, color: 'var(--ink-3)' }}>Show a popup when an expense is added or edited</p>
-              </div>
-              <button
-                onClick={() => setNotificationsEnabled(prev => !prev)}
-                style={{
-                  width: 48, height: 26, borderRadius: 13,
-                  background: notificationsEnabled ? 'var(--success)' : 'var(--surface-3)',
-                  border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0
-                }}
-                aria-label="Toggle notifications"
-              >
-                <div style={{
-                  position: 'absolute', top: 3, width: 20, height: 20, borderRadius: '50%',
-                  background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-                  transition: 'left 0.2s',
-                  left: notificationsEnabled ? 25 : 3,
-                }} />
-              </button>
+          {/* Push Notifications */}
+          {group && (
+            <div>
+              <label style={{ marginBottom: 10, display: 'block' }}>Push Notifications</label>
+              <PushToggle groupId={group.id} label="Expense push notifications" />
             </div>
-          </div>
+          )}
 
           <button className="btn btn-primary" disabled={saving || !name.trim()} onClick={handleSave}>
             {saved ? t('settings.saved') : saving ? t('settings.saving') : t('settings.save')}
