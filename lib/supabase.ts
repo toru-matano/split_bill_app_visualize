@@ -30,7 +30,6 @@ export type Expense = {
   original_currency: string | null
   original_amount: number | null
   exchange_rate: number | null
-  expense_date: string | null
   created_at: string
   member?: Member
 }
