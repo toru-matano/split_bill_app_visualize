@@ -1,12 +1,14 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { use, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { calculateSettlement } from '@/lib/settle'
-import type { Group, Member, Transfer } from '@/lib/supabase'
+import { computeBalances, settleFromBalances } from '@/lib/settle'
+import type { Transfer } from '@/lib/supabase'
 import { CURRENCY_SYMBOLS } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
+import { useGroup } from '@/hooks/useGroup'
 import LangPicker from '@/components/LangPicker'
+import { DeleteModal } from '@/components/PopupModal'
 
 type PageProps = { params: Promise<{ token: string }> }
 
@@ -33,16 +35,15 @@ function SuccessPopup({ message, onClose }: { message: string; onClose: () => vo
 const todayStr = () => new Date().toISOString().split('T')[0]
 
 export default function SettlePage({ params }: PageProps) {
+  const { token } = use(params)
   const router = useRouter()
   const { t } = useI18n()
-  const [token, setToken] = useState<string | null>(null)
-  const [group, setGroup] = useState<Group | null>(null)
-  const [members, setMembers] = useState<Member[]>([])
+  const { loading: groupLoading, group, members } = useGroup(token)
   const [transfers, setTransfers] = useState<Transfer[]>([])
   const [transferRecords, setTransferRecords] = useState<TransferRecord[]>([])
   const [baseBalances, setBaseBalances] = useState<Record<string, number>>({})
   const [netBalances, setNetBalances] = useState<Record<string, number>>({})
-  const [loading, setLoading] = useState(true)
+  const [dataLoading, setDataLoading] = useState(true)
   const [showSuccess, setShowSuccess] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
@@ -63,26 +64,7 @@ export default function SettlePage({ params }: PageProps) {
   const [editNote, setEditNote] = useState('')
   const [editDate, setEditDate] = useState('')
   const [editSaving, setEditSaving] = useState(false)
-
-  useEffect(() => { params.then(p => setToken(p.token)) }, [params])
-
-  const calcTransfers = useCallback((balances: Record<string, number>, memberList: Member[]): Transfer[] => {
-    const remaining = { ...balances }
-    const newTransfers: Transfer[] = []
-    const debtors = memberList.filter(m => (remaining[m.id] ?? 0) < -0.5).sort((a, b) => remaining[a.id] - remaining[b.id])
-    const creditors = memberList.filter(m => (remaining[m.id] ?? 0) > 0.5).sort((a, b) => remaining[b.id] - remaining[a.id])
-    let ci = 0, di = 0
-    while (ci < creditors.length && di < debtors.length) {
-      const creditor = creditors[ci]; const debtor = debtors[di]
-      const credAmt = remaining[creditor.id]; const debtAmt = Math.abs(remaining[debtor.id])
-      const amt = Math.min(credAmt, debtAmt)
-      if (amt > 0.5) newTransfers.push({ from: debtor.id, to: creditor.id, fromName: debtor.name, toName: creditor.name, amount: Math.round(amt) })
-      remaining[creditor.id] -= amt; remaining[debtor.id] += amt
-      if (remaining[creditor.id] < 0.5) ci++
-      if (Math.abs(remaining[debtor.id]) < 0.5) di++
-    }
-    return newTransfers
-  }, [])
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null)
 
   const applyTransferRecords = useCallback((base: Record<string, number>, records: TransferRecord[]): Record<string, number> => {
     const bal = { ...base }
@@ -94,43 +76,34 @@ export default function SettlePage({ params }: PageProps) {
   }, [])
 
   useEffect(() => {
-    if (!token) return
+    if (!group || members.length === 0) return
+    if (members.length >= 2) { setFromMember(members[0].id); setToMember(members[1].id) }
     ;(async () => {
-      const { data: grp } = await supabase.from('groups').select('*').eq('share_token', token).single()
-      if (!grp) { setLoading(false); return }
-      setGroup(grp)
-      const { data: mems } = await supabase.from('members').select('*').eq('group_id', grp.id)
-      const memberList: Member[] = mems ?? []
-      setMembers(memberList)
-      if (memberList.length >= 2) { setFromMember(memberList[0].id); setToMember(memberList[1].id) }
-
-      const { data: exps } = await supabase.from('expenses').select('id').eq('group_id', grp.id)
+      const { data: exps } = await supabase.from('expenses').select('id').eq('group_id', group.id)
       const expIds = (exps ?? []).map((e: { id: string }) => e.id)
-      const [{ data: payers }, { data: splits }] = await Promise.all([
-        supabase.from('expense_payers').select('member_id, amount').in('expense_id', expIds),
-        supabase.from('expense_splits').select('member_id, amount').in('expense_id', expIds),
+
+      const [payersRes, splitsRes, trsRes] = await Promise.all([
+        expIds.length
+          ? supabase.from('expense_payers').select('member_id, amount').in('expense_id', expIds)
+          : Promise.resolve({ data: [] as { member_id: string; amount: number }[] }),
+        expIds.length
+          ? supabase.from('expense_splits').select('member_id, amount').in('expense_id', expIds)
+          : Promise.resolve({ data: [] as { member_id: string; amount: number }[] }),
+        supabase.from('transfer_records').select('*').eq('group_id', group.id).order('transfer_date', { ascending: false }),
       ])
 
-      const base: Record<string, number> = {}
-      memberList.forEach(m => { base[m.id] = 0 });
-      (payers ?? []).forEach((p: { member_id: string; amount: number }) => { base[p.member_id] = (base[p.member_id] ?? 0) + Number(p.amount) });
-      (splits ?? []).forEach((s: { member_id: string; amount: number }) => { base[s.member_id] = (base[s.member_id] ?? 0) - Number(s.amount) })
+      const base = computeBalances(payersRes.data ?? [], splitsRes.data ?? [], members)
       setBaseBalances(base)
-
-      let records: TransferRecord[] = []
-      try {
-        const { data: trs } = await supabase.from('transfer_records').select('*').eq('group_id', grp.id).order('transfer_date', { ascending: false })
-        records = trs ?? []
-      } catch { records = [] }
+      const records: TransferRecord[] = (trsRes.data ?? []) as TransferRecord[]
       setTransferRecords(records)
-
       const net = applyTransferRecords(base, records)
       setNetBalances(net)
-      setTransfers(calcTransfers(net, memberList))
-      setLoading(false)
+      setTransfers(settleFromBalances(net, members))
+      setDataLoading(false)
     })()
-  }, [token, calcTransfers, applyTransferRecords])
+  }, [group, members, applyTransferRecords])
 
+  const loading = groupLoading || dataLoading
   const sym = CURRENCY_SYMBOLS[group?.currency ?? 'JPY'] ?? '¥'
   const maxAbs = Math.max(...Object.values(netBalances).map(Math.abs), 1)
   const memberName = (id: string) => members.find(m => m.id === id)?.name ?? id
@@ -147,7 +120,7 @@ export default function SettlePage({ params }: PageProps) {
         const newRecords = [data, ...transferRecords]
         setTransferRecords(newRecords)
         const net = applyTransferRecords(baseBalances, newRecords)
-        setNetBalances(net); setTransfers(calcTransfers(net, members))
+        setNetBalances(net); setTransfers(settleFromBalances(net, members))
         setSuccessMsg(`Recorded: ${memberName(fromMember)} → ${memberName(toMember)} ${sym}${Number(amount).toLocaleString()}`)
         setShowSuccess(true)
         setAmount(''); setNote(''); setShowForm(false)
@@ -177,7 +150,7 @@ export default function SettlePage({ params }: PageProps) {
       const newRecords = transferRecords.map(r => r.id === editingId ? data : r)
       setTransferRecords(newRecords)
       const net = applyTransferRecords(baseBalances, newRecords)
-      setNetBalances(net); setTransfers(calcTransfers(net, members))
+      setNetBalances(net); setTransfers(settleFromBalances(net, members))
       setSuccessMsg('Transfer updated')
       setShowSuccess(true)
       setEditingId(null)
@@ -186,21 +159,21 @@ export default function SettlePage({ params }: PageProps) {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this transfer record?')) return
+    setDeleteTarget(null)
+    // if (!confirm('Delete this transfer record?')) return
     await supabase.from('transfer_records').delete().eq('id', id)
     const newRecords = transferRecords.filter(r => r.id !== id)
     setTransferRecords(newRecords)
     const net = applyTransferRecords(baseBalances, newRecords)
-    setNetBalances(net); setTransfers(calcTransfers(net, members))
+    setNetBalances(net); setTransfers(settleFromBalances(net, members))
   }
-
+  
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p className="text-muted">{t('settle.calculating')}</p></div>
 
   return (
     <>
       {showSuccess && <SuccessPopup message={successMsg} onClose={() => setShowSuccess(false)} />}
       <style>{`@keyframes slideDown { from { opacity:0; transform: translateX(-50%) translateY(-12px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }`}</style>
-      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
       <nav className="navbar">
         <a className="btn-ghost btn" style={{ width: 'auto', height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => router.back()}>
@@ -287,121 +260,152 @@ export default function SettlePage({ params }: PageProps) {
           </button>
         ) : (
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <h3 style={{ margin: 0, fontSize: 15 }}>{t('settle.newTransfer')}</h3>
-            <div><label>{t('settle.fromWhoPaid')}</label><select value={fromMember} onChange={e => setFromMember(e.target.value)}>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
+            <h3 style={{ margin: 0, fontSize: 15 }}>
+              <i className="fa-solid fa-pen"/>
+              {t('settle.newTransfer')}
+            </h3>
+            <div>
+              <label>{t('settle.fromWhoPaid')}</label>
+              <select value={fromMember} onChange={e => setFromMember(e.target.value)}>
+              {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </div>
             <div>
               <label>{t('settle.toWhoReceived')}</label>
-              <select value={toMember} onChange={e => setToMember(e.target.value)}>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
+              <select value={toMember} onChange={e => setToMember(e.target.value)}>
+              {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
               {fromMember === toMember && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{t('settle.senderReceiverDifferent')}</p>}
             </div>
-            <div><label>{t('settle.amountLabel')} ({sym})</label><input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" min="0" step="any" style={{ fontFamily: 'DM Mono, monospace', fontSize: 18, fontWeight: 500 }} /></div>
-            <div><label>{t('settle.dateLabel')}</label><input type="date" value={transferDate} onChange={e => setTransferDate(e.target.value)} /></div>
-            <div><label>{t('settle.noteLabel')}</label><input value={note} onChange={e => setNote(e.target.value)} placeholder={t('settle.notePlaceholder')} /></div>
+            <div>
+              <label>{t('settle.amountLabel')} ({sym})</label>
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" min="0" step="any" style={{ fontFamily: 'DM Mono, monospace', fontSize: 18, fontWeight: 500 }} />
+            </div>
+            <div>
+              <label>{t('settle.dateLabel')}</label>
+              <input type="date" value={transferDate} onChange={e => setTransferDate(e.target.value)} />
+            </div>
+            <div>
+              <label>{t('settle.noteLabel')}</label>
+              <input value={note} onChange={e => setNote(e.target.value)} placeholder={t('settle.notePlaceholder')} />
+            </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowForm(false)}>{t('settle.cancel')}</button>
               <button className="btn btn-primary" style={{ flex: 1 }} disabled={!fromMember || !toMember || !amount || fromMember === toMember || submitting} onClick={handleSubmit}>
-                {submitting ? t('settle.saving') : t('settle.recordTransfer')}
+              {submitting ? t('settle.saving') : t('settle.recordTransfer')}
               </button>
             </div>
+
           </div>
         )}
 
         {/* Transfer history with edit */}
-        <div>
-          <p className="section-title">{t('settle.paymentHistory', { count: transferRecords.length })}</p>
-          {transferRecords.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', padding: '32px 20px' }}>
-              <p style={{ color: 'var(--ink-3)', fontSize: 14 }}>{t('settle.noTransfers')}</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {transferRecords.map(record => (
-                <div key={record.id}>
-                  {editingId === record.id ? (
-                    /* ── Inline edit form ── */
-                    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                      <h3 style={{ margin: 0, fontSize: 15 }}>
-                        <i className="fa-solid fa-pen" style={{ fontSize: 11, marginRight: 6 }} />
-                        Edit transfer
-                      </h3>
-                      <div>
-                        <label>{t('settle.fromWhoPaid')}</label>
-                        <select value={editFrom} onChange={e => setEditFrom(e.target.value)}>
-                          {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label>{t('settle.toWhoReceived')}</label>
-                        <select value={editTo} onChange={e => setEditTo(e.target.value)} style={{ height: 34, fontSize: 13 }}>
-                          {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                        </select>
-                        {editFrom === editTo && <p style={{ fontSize: 11, color: 'var(--danger)' }}>{t('settle.senderReceiverDifferent')}</p>}
-                      </div>
-                      <div>
-                        <label>{t('settle.amountLabel')} ({sym})</label>
-                        <input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} style={{ height: 34, fontSize: 14, fontFamily: 'DM Mono, monospace' }} />
-                      </div>
-                      <div>
-                        <label>{t('settle.dateLabel')}</label>
-                        <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} style={{ height: 34, fontSize: 13 }} />
-                      </div>
-                      <div>
-                        <label>{t('settle.noteLabel')}</label>
-                        <input value={editNote} onChange={e => setEditNote(e.target.value)} placeholder="e.g. Bank transfer, Cash" style={{ height: 34, fontSize: 13 }} />
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn btn-secondary" style={{ flex: 1, height: 34, fontSize: 12 }} onClick={cancelEdit}>{t('settle.cancel')}</button>
-                        <button className="btn btn-primary" style={{ flex: 1, height: 34, fontSize: 12 }} disabled={!editFrom || !editTo || !editAmount || editFrom === editTo || editSaving} onClick={saveEdit}>
-                          {editSaving ? t('settle.saving') : t('settle.recordTransfer')}
+        <p className="section-title">{t('settle.paymentHistory', { count: transferRecords.length })}</p>
+        {transferRecords.length === 0 ? (
+          <div className="card" style={{ textAlign: 'center', padding: '32px 20px' }}>
+            <p style={{ color: 'var(--ink-3)', fontSize: 14 }}>{t('settle.noTransfers')}</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {transferRecords.map(record => (
+              <div key={record.id}>
+                {editingId === record.id ? (
+                  /* ── Inline edit form ── */
+                  <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <h3 style={{ margin: 0, fontSize: 15 }}>
+                      <i className="fa-solid fa-pen"/>
+                      {t('settle.editTransfer')}
+                    </h3>
+                    <div>
+                      <label>{t('settle.fromWhoPaid')}</label>
+                      <select value={editFrom} onChange={e => setEditFrom(e.target.value)}>
+                      {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label>{t('settle.toWhoReceived')}</label>
+                      <select value={editTo} onChange={e => setEditTo(e.target.value)}>
+                      {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                      {editFrom === editTo && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{t('settle.senderReceiverDifferent')}</p>}
+                    </div>
+                    <div>
+                      <label>{t('settle.amountLabel')} ({sym})</label>
+                      <input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} placeholder="0" min="0" step="any" style={{ fontFamily: 'DM Mono, monospace', fontSize: 18, fontWeight: 500 }} />
+                    </div>
+                    <div>
+                      <label>{t('settle.dateLabel')}</label>
+                      <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+                    </div>
+                    <div>
+                      <label>{t('settle.noteLabel')}</label>
+                      <input value={editNote} onChange={e => setEditNote(e.target.value)} placeholder={t('settle.notePlaceholder')} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-secondary" style={{ flex: 1 }} onClick={cancelEdit}>{t('settle.cancel')}</button>
+                      <button className="btn btn-primary" style={{ flex: 1 }} disabled={!editFrom || !editTo || !editAmount || editFrom === editTo || editSaving} onClick={saveEdit}>
+                      {editSaving ? t('settle.saving') : t('settle.recordTransfer')}
+                      </button>
+                    </div>
+                    <button
+                      className="btn"
+                      onClick={() => setDeleteTarget({ id: record.id, label: `${memberName(record.from_member_id)} → ${memberName(record.to_member_id)}` })}
+                      style={{ flex: 1, color: 'white', background: 'var(--danger)', border: 'none', cursor: 'pointer',}}
+                    >
+                      {t('settle.deleteConfirmBtn')}
+                    </button>
+                  </div>
+                ) : (
+                  /* ── Read view ── */
+                  <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--danger-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--danger)', flexShrink: 0 }}>
+                      {memberName(record.from_member_id).slice(0, 2).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>
+                        {memberName(record.from_member_id)} <span style={{ color: 'var(--ink-3)' }}>→</span> {memberName(record.to_member_id)}
+                      </p>
+                      <p style={{ fontSize: 11, color: 'var(--ink-3)' }}>
+                        {new Date(record.transfer_date).toLocaleDateString()}{record.note ? ` · ${record.note}` : ''}
+                      </p>
+                    </div>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--success-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--success)', flexShrink: 0 }}>
+                      {memberName(record.to_member_id).slice(0, 2).toUpperCase()}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, marginLeft: 8 }}>
+                      <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: 700, fontSize: 14, color: 'var(--success)' }}>
+                        {sym}{Number(record.amount).toLocaleString()}
+                      </span>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          onClick={() => startEdit(record)}
+                          style={{ fontSize: 11, color: 'var(--ink-2)', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <i className="fa-solid fa-pen" style={{ fontSize: 10 }} /> Edit
                         </button>
                       </div>
                     </div>
-                  ) : (
-                    /* ── Read view ── */
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--danger-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--danger)', flexShrink: 0 }}>
-                        {memberName(record.from_member_id).slice(0, 2).toUpperCase()}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>
-                          {memberName(record.from_member_id)} <span style={{ color: 'var(--ink-3)' }}>→</span> {memberName(record.to_member_id)}
-                        </p>
-                        <p style={{ fontSize: 11, color: 'var(--ink-3)' }}>
-                          {new Date(record.transfer_date).toLocaleDateString()}{record.note ? ` · ${record.note}` : ''}
-                        </p>
-                      </div>
-                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--success-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--success)', flexShrink: 0 }}>
-                        {memberName(record.to_member_id).slice(0, 2).toUpperCase()}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, marginLeft: 8 }}>
-                        <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: 700, fontSize: 14, color: 'var(--success)' }}>
-                          {sym}{Number(record.amount).toLocaleString()}
-                        </span>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={() => startEdit(record)}
-                            style={{ fontSize: 11, color: 'var(--ink-2)', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                          >
-                            <i className="fa-solid fa-pen" style={{ fontSize: 10 }} /> Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(record.id)}
-                            style={{ fontSize: 11, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-                          >
-                            <i className="fa-solid fa-trash" style={{ fontSize: 10 }} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
         <button className="btn btn-secondary" onClick={() => router.push(`/group/${token}`)}>{t('settle.back')}</button>
       </div>
+
+      {deleteTarget && (
+        <DeleteModal
+          label={deleteTarget.label}
+          confirmTitle={t('settle.deleteConfirmTitle')}
+          confirmMsg={t('settle.deleteConfirmMsg')}
+          confirmBtn={t('settle.deleteConfirmBtn')}
+          cancelBtn={t('settle.deleteCancel')}
+          onConfirm={() => handleDelete(deleteTarget.id)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
     </>
   )
 }

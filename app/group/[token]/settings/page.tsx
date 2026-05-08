@@ -1,21 +1,22 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Group, Member } from '@/lib/supabase'
 import { CURRENCY_SYMBOLS, SUPPORTED_CURRENCIES } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
+import { useGroup } from '@/hooks/useGroup'
 import LangPicker from '@/components/LangPicker'
 import PushToggle from '@/components/PushToggle'
+import { DeleteModal } from '@/components/PopupModal'
 
-type PageProps = { params: Promise<{ token: string }> }
 
 const CURRENCIES = SUPPORTED_CURRENCIES.map(c => ({ code: c, symbol: CURRENCY_SYMBOLS[c] ?? c }))
 
-export default function SettingsPage({ params }: PageProps) {
+export default function SettingsPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = use(params)
   const router = useRouter()
   const { t } = useI18n()
-  const [token, setToken] = useState<string | null>(null)
   const [group, setGroup] = useState<Group | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [name, setName] = useState('')
@@ -32,8 +33,6 @@ export default function SettingsPage({ params }: PageProps) {
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
-
-  useEffect(() => { params.then(p => setToken(p.token)) }, [params])
 
   useEffect(() => {
     if (!token) return
@@ -86,8 +85,10 @@ export default function SettingsPage({ params }: PageProps) {
 
   const handleDeleteGroup = async () => {
     if (!group || deleteConfirm !== group.name || !token) return
-    setDeleting(true)
+    console.log(`Deleting group ${token}...`)
     await fetch(`/api/groups/${token}`, { method: 'DELETE' })
+    const saved = localStorage.getItem('splitmate_recent_groups')
+    if (saved) localStorage.setItem('splitmate_recent_groups', JSON.stringify(JSON.parse(saved).filter((g: any) => g.shareToken !== token)))
     router.push('/')
   }
 
@@ -99,7 +100,6 @@ export default function SettingsPage({ params }: PageProps) {
 
   return (
     <>
-      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
       <nav className="navbar">
         <a className="btn-ghost btn" style={{ width: 'auto', height: 32, cursor: 'pointer' }} onClick={() => router.back()}><i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> {t('settings.back').replace('← ', '')}</a>
         <span className="navbar-title">{t('settings.title')}</span>
@@ -183,7 +183,7 @@ export default function SettingsPage({ params }: PageProps) {
                 <input value={deleteConfirm} onChange={e => setDeleteConfirm(e.target.value)} placeholder={t('settings.confirmDeletePlaceholder')} style={{ borderColor: deleteConfirm && !canDelete ? 'var(--danger)' : undefined }} autoFocus />
                 <div className="row" style={{ gap: 8 }}>
                   <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setShowDelete(false); setDeleteConfirm('') }}>Cancel</button>
-                  <button className="btn" style={{ flex: 1, background: canDelete ? 'var(--danger)' : 'var(--surface-3)', color: canDelete ? 'white' : 'var(--ink-3)', opacity: deleting ? 0.6 : 1, cursor: canDelete ? 'pointer' : 'default', border: 'none' }} disabled={!canDelete || deleting} onClick={handleDeleteGroup}>
+                  <button className="btn" style={{ flex: 1, background: canDelete ? 'var(--danger)' : 'var(--surface-3)', color: canDelete ? 'white' : 'var(--ink-3)', opacity: deleting ? 0.6 : 1, cursor: canDelete ? 'pointer' : 'default', border: 'none' }} disabled={!canDelete || deleting} onClick={() => setDeleting(true)}>
                     {deleting ? '…' : t('settings.confirmDeleteBtn')}
                   </button>
                 </div>
@@ -193,6 +193,18 @@ export default function SettingsPage({ params }: PageProps) {
         </div>
 
       </div>
+
+      {deleting && (
+        <DeleteModal
+          label={deleteConfirm}
+          confirmTitle={t('group.deleteConfirmTitle')}
+          confirmMsg={t('group.deleteConfirmMsg')}
+          confirmBtn={t('group.deleteConfirmBtn')}
+          cancelBtn={t('group.deleteCancel')}
+          onConfirm={handleDeleteGroup}
+          onCancel={() => setDeleting(false)}
+        />
+      )}
     </>
   )
 }

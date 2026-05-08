@@ -1,21 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseServer } from '@/lib/supabase-server'
+import { ValidationError, validateGroupInput } from '@/lib/validation'
 import { nanoid } from 'nanoid'
+
+const db = supabaseServer
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, members, currency } = await req.json()
-    if (!name || !members || members.length < 2) return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
+    const body = await req.json()
+    const { name, members, currency } = validateGroupInput(body)
 
     const shareToken = nanoid(10)
-    const { data: group, error: groupError } = await supabase
-      .from('groups').insert({ name, currency: currency ?? 'JPY', share_token: shareToken }).select().single()
+    const { data: group, error: groupError } = await db
+      .from('groups').insert({ name, currency, share_token: shareToken }).select().single()
     if (groupError) throw groupError
 
-    const { error: membersError } = await supabase.from('members')
+    const { error: membersError } = await db.from('members')
       .insert(members.map((m: string) => ({ group_id: group.id, name: m })))
     if (membersError) throw membersError
 
     return NextResponse.json({ id: group.id, shareToken })
-  } catch (err) { console.error(err); return NextResponse.json({ error: 'Server error' }, { status: 500 }) }
+  } catch (err) {
+    if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status })
+    console.error('[POST /api/groups]', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 }

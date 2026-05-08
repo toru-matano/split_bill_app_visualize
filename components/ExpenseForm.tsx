@@ -6,7 +6,9 @@ import type { Member } from '@/lib/supabase'
 import { CATEGORIES, CATEGORY_KEYS, type CategoryKey } from '@/lib/categories'
 import { getRates, SUPPORTED_CURRENCIES, CURRENCY_SYMBOLS } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
+import { useGroup } from '@/hooks/useGroup'
 import LangPicker from '@/components/LangPicker'
+import { DeleteModal } from '@/components/PopupModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +38,7 @@ function SuccessPopup({ message, onClose }: { message: string; onClose: () => vo
   )
 }
 
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
@@ -47,8 +50,7 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
   const expenseId = isEdit ? mode.expenseId : null
 
   // ── Group & members ──
-  const [group, setGroup] = useState<{ id: string; currency: string } | null>(null)
-  const [members, setMembers] = useState<Member[]>([])
+  const { loading: groupLoading, group, members } = useGroup(token)
   const [rates, setRates] = useState<Record<string, number>>({})
   const [fetching, setFetching] = useState(true)
 
@@ -80,17 +82,23 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
   const [loading, setLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null)
+
+  const deleteExpense = async (id: string) => {
+    setDeleting(id)
+    router.push(`/group/${token}`)
+    setDeleteTarget(null)
+    await fetch(`/api/expenses?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token ?? '')}`, { method: 'DELETE' })
+    // setExpenses(prev => prev.filter(e => e.id !== id))
+    setDeleting(null)
+  }
   // ─── Load group + members (+ expense data when editing) ───────────────────
 
   useEffect(() => {
+    if (!group || members.length === 0) return
     ;(async () => {
-      const { data: grp } = await supabase.from('groups').select('*').eq('share_token', token).single()
-      if (!grp) { setFetching(false); return }
-      setGroup(grp)
-
-      const { data: mems } = await supabase.from('members').select('*').eq('group_id', grp.id)
-      const memberList: Member[] = mems ?? []
-      setMembers(memberList)
+      const memberList = members
 
       if (isEdit && expenseId) {
         // ── Edit: pre-fill from existing expense ──
@@ -105,7 +113,7 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
           setExpCurrency(exp.original_currency)
           setAmount(String(exp.original_amount))
         } else {
-          setExpCurrency(grp.currency)
+          setExpCurrency(group!.currency)
           setAmount(String(exp.amount))
         }
 
@@ -157,7 +165,7 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
 
       } else {
         // ── Add: sensible defaults ──
-        setExpCurrency(grp.currency)
+        setExpCurrency(group!.currency)
         setEqualSet(new Set(memberList.map(x => x.id)))
         if (memberList.length > 0) setSinglePayer(memberList[0].id)
 
@@ -171,11 +179,11 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
         setMultiPayerAmounts(payInit)
       }
 
-      setRates(await getRates(grp.currency))
+      setRates(await getRates(group!.currency))
       setFetching(false)
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, expenseId])
+  }, [group, members, isEdit, expenseId])
 
   // ─── Derived values ───────────────────────────────────────────────────────
 
@@ -290,7 +298,7 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
           isEdit
-            ? { ...commonPayload, expenseId }
+            ? { ...commonPayload, expenseId, groupToken: token }
             : { ...commonPayload, groupId: group.id }
         ),
       })
@@ -327,7 +335,7 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
 
   // ─── Loading state ────────────────────────────────────────────────────────
 
-  if (fetching) return (
+  if (groupLoading || fetching) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
       <p className="text-muted">Loading…</p>
     </div>
@@ -344,7 +352,6 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
         />
       )}
       <style>{`@keyframes slideDown { from { opacity:0; transform: translateX(-50%) translateY(-12px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }`}</style>
-      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
       <nav className="navbar">
         <a
@@ -407,7 +414,9 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
                   onClick={() => setShowCalculator(v => !v)}
                   style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, border: 'none', background: 'var(--surface-2)', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}
                   title="Calculator"
-                >🧮</button>
+                >
+                  <i className="fa-solid fa-calculator" style={{ fontSize: 24 }}/>
+                </button>
                 {showCalculator && (
                   <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 1000, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', minWidth: 200 }}>
                     <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 18, textAlign: 'right', padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 4, marginBottom: 8 }}>{calcDisplay}</div>
@@ -594,8 +603,34 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
             }
           </button>
 
+          {/* ── Delete (only in edit mode) ── */}
+          {(isEdit && expenseId) && (
+            <button
+              className="btn btn-danger"
+              style={{ display: 'flex', alignItems: 'center', gap: 5 }}
+              onClick={() => setDeleteTarget({ id: expenseId || '-', label: label || 'Expense' })}
+              disabled={deleting === expenseId}
+            >
+              {deleting === expenseId
+                ? t('group.deleting')
+                : <><i className="fa-solid fa-trash" style={{ fontSize: 11 }} />{t('group.delete')}</>
+              }
+            </button>
+          )}
         </div>
       </div>
+
+      {deleteTarget && (
+        <DeleteModal
+          label={deleteTarget.label}
+          confirmTitle={t('group.deleteConfirmTitle')}
+          confirmMsg={t('group.deleteConfirmMsg')}
+          confirmBtn={t('group.deleteConfirmBtn')}
+          cancelBtn={t('group.deleteCancel')}
+          onConfirm={() => deleteExpense(deleteTarget.id)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </>
   )
 }

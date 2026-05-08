@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Group, Member, Expense } from '@/lib/supabase'
@@ -7,41 +7,14 @@ import { CATEGORIES } from '@/lib/categories'
 import { CURRENCY_SYMBOLS } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
 import ShareSheet from '@/components/ShareSheet'
+import { useGroup } from '@/hooks/useGroup'
 import LangPicker from '@/components/LangPicker'
 
-type PageProps = { params: Promise<{ token: string }> }
 
-function DeleteModal({
-  onConfirm, onCancel, label,
-  confirmTitle, confirmMsg, confirmBtn, cancelBtn,
-}: {
-  onConfirm: () => void; onCancel: () => void; label: string
-  confirmTitle: string; confirmMsg: string; confirmBtn: string; cancelBtn: string
-}) {
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', padding: 24, maxWidth: 340, width: '100%', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
-        <div style={{ fontSize: 28, textAlign: 'center', marginBottom: 12 }}>🗑️</div>
-        <h2 style={{ textAlign: 'center', marginBottom: 6, fontSize: 17 }}>{confirmTitle}</h2>
-        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-3)', marginBottom: 4 }}>{label}</p>
-        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-3)', marginBottom: 24 }}>{confirmMsg}</p>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onCancel}>{cancelBtn}</button>
-          <button
-            className="btn"
-            style={{ flex: 1, background: 'var(--danger)', color: 'white', border: 'none' }}
-            onClick={onConfirm}
-          >{confirmBtn}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export default function GroupPage({ params }: PageProps) {
+export default function GroupPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = use(params)
   const router = useRouter()
   const { t } = useI18n()
-  const [token, setToken] = useState<string | null>(null)
   const [group, setGroup] = useState<Group | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
@@ -52,8 +25,6 @@ export default function GroupPage({ params }: PageProps) {
   const [filterCat, setFilterCat] = useState<string>('all')
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null)
   const groupIdRef = useRef<string | null>(null)
-
-  useEffect(() => { params.then(p => setToken(p.token)) }, [params])
 
   const loadExpenses = useCallback(async (groupId: string) => {
     const { data: exps } = await supabase
@@ -109,7 +80,7 @@ export default function GroupPage({ params }: PageProps) {
   const deleteExpense = async (id: string) => {
     setDeleting(id)
     setDeleteTarget(null)
-    await fetch('/api/expenses', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expenseId: id }) })
+    await fetch(`/api/expenses?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token ?? '')}`, { method: 'DELETE' })
     setExpenses(prev => prev.filter(e => e.id !== id))
     setDeleting(null)
   }
@@ -124,38 +95,56 @@ export default function GroupPage({ params }: PageProps) {
 
   return (
     <>
-      {/* Font Awesome */}
-      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-
       <nav className="navbar">
-        <span className="navbar-title">{group.name}</span>
+        <span className="navbar-title">
+          <button
+            className="btn btn-ghost"
+            onClick={() => router.push('/')}
+            title="Home"
+            style={{
+              width: 70,
+              height: 42,
+              fontSize: 16,
+              borderWidth: 0,
+            }}
+          >
+              <img 
+                src="/icon-192.png" 
+                alt="icon" 
+                style={{ width: 24, height: 'auto' }}
+              />
+          </button>
+        </span>
+
+        <button
+          className="btn btn-ghost"
+          onClick={() => setShowShare(true)}
+          style={{ flexShrink: 0, width: 70, height: 42, gap: 0 }}
+          title={t('group.share')}
+        >
+          <i className="fa-solid fa-share-nodes" style={{ fontSize: 20 }} />
+        </button>
+        <button
+          className="btn btn-ghost"
+          onClick={() => router.push(`/group/${token}/settings`)}
+          style={{ flexShrink: 0, width: 70, height: 42, padding: 0 }}
+          title="Settings"
+        >
+          <i className="fa-solid fa-gear" style={{ fontSize: 20 }} />
+        </button>
         {liveIndicator && (
           <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', display: 'inline-block' }} />
             {t('group.updated')}
           </span>
         )}
-        <button
-          className="btn btn-ghost"
-          onClick={() => setShowShare(true)}
-          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}
-          title={t('group.share')}
-        >
-          <i className="fa-solid fa-share-nodes" style={{ fontSize: 15 }} />
-          <span style={{ fontSize: 13 }}>{t('group.share')}</span>
-        </button>
-        <button
-          className="btn btn-ghost"
-          onClick={() => router.push(`/group/${token}/settings`)}
-          style={{ flexShrink: 0, width: 36, height: 36, padding: 0 }}
-          title="Settings"
-        >
-          <i className="fa-solid fa-gear" style={{ fontSize: 16 }} />
-        </button>
         <LangPicker />
       </nav>
 
       <div className="container" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Group name */}
+       <h1>{group.name}</h1>
 
         {/* Members */}
         <div>
@@ -229,7 +218,7 @@ export default function GroupPage({ params }: PageProps) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p className="expense-label">{e.label || 'Expense'}</p>
                       <p className="expense-meta">
-                        {payer?.name ?? '—'} · {catLabel} · {new Date(e.created_at).toISOString().split('T')[0]}
+                        {e.expense_date}
                         {isForeign && (
                           <span style={{ marginLeft: 6, color: 'var(--accent)', fontWeight: 500 }}>
                             · {CURRENCY_SYMBOLS[e.original_currency!] ?? e.original_currency}{Number(e.original_amount).toLocaleString()} {e.original_currency}
@@ -247,17 +236,6 @@ export default function GroupPage({ params }: PageProps) {
                         <i className="fa-solid fa-pen" style={{ fontSize: 11 }} />
                         {t('group.edit')}
                       </button>
-                      <button
-                        className="btn btn-danger"
-                        style={{ display: 'flex', alignItems: 'center', gap: 5 }}
-                        onClick={() => setDeleteTarget({ id: e.id, label: e.label || 'Expense' })}
-                        disabled={deleting === e.id}
-                      >
-                        {deleting === e.id
-                          ? t('group.deleting')
-                          : <><i className="fa-solid fa-trash" style={{ fontSize: 11 }} />{t('group.delete')}</>
-                        }
-                      </button>
                     </div>
                   </div>
                 )
@@ -269,20 +247,8 @@ export default function GroupPage({ params }: PageProps) {
 
       {showShare && <ShareSheet url={shareUrl} groupName={group.name} onClose={() => setShowShare(false)} />}
 
-      {deleteTarget && (
-        <DeleteModal
-          label={deleteTarget.label}
-          confirmTitle={t('group.deleteConfirmTitle')}
-          confirmMsg={t('group.deleteConfirmMsg')}
-          confirmBtn={t('group.deleteConfirmBtn')}
-          cancelBtn={t('group.deleteCancel')}
-          onConfirm={() => deleteExpense(deleteTarget.id)}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
-
       {/* Absolute-positioned bottom button */}
-      <div style={{
+      {/* <div style={{
         position: 'fixed',
         bottom: 0,
         left: 0,
@@ -294,29 +260,11 @@ export default function GroupPage({ params }: PageProps) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 12,
+        gap: 18,
         zIndex: 50,
       }}>
-        <button
-          className="btn btn-primary"
-          onClick={() => router.push('/')}
-          style={{
-            maxWidth: 100,
-            width: '100%',
-            height: 52,
-            fontSize: 16,
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 10,
-            borderRadius: 14,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-          }}
-        >
-          Home
-        </button>
-      </div>
+
+      </div> */}
     </>
   )
 }
@@ -326,7 +274,7 @@ function AdBanner() {
     <div style={{ borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-2)', background: 'var(--surface-2)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
       <div>
         <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', marginBottom: 2 }}>Advertisement</p>
-        <p style={{ fontSize: 11, color: 'var(--ink-3)' }}>Replace with Google AdSense &lt;ins&gt; tag</p>
+        <p style={{ fontSize: 11, color: 'var(--ink-3)' }}>Google AdSense &lt;ins&gt; tag</p>
       </div>
       <span style={{ fontSize: 20 }}>📢</span>
     </div>

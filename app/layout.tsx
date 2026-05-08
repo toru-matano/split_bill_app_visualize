@@ -28,6 +28,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        {/* Font Awesome loaded once here — never in individual page components */}
+        <link
+          rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+          crossOrigin="anonymous"
+        />
       </head>
       <body>
         <I18nProvider>{children}</I18nProvider>

@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Split Mate",
-    "tagline": "Split trip expenses with friends.",
+    "tagline": "Split expenses with friends.",
     "taglineSub": "No account needed."
   },
   "home": {
@@ -28,7 +28,7 @@
     "totalSpent": "Total spent",
     "perPerson": "Per person",
     "members": "Members",
-    "addExpense": "+ Add expense",
+    "addExpense": "Add expense",
     "settleUp": "Settle up",
     "expenses": "Expenses",
     "viewSummary": "View summary",
@@ -109,13 +109,16 @@
     "paymentHistory": "Payment history ({count})",
     "noTransfers": "No transfers recorded yet.",
     "transferRecorded": "Transfer recorded: {from} → {to} {amount}",
-    "confirmDeleteTransfer": "Delete this transfer record?",
+    "deleteConfirmTitle": "Delete this transfer record?",
+    "deleteConfirmMsg": "This transfer will be permanently removed.",
+    "deleteConfirmBtn": "Delete",
+    "deleteCancel": "Cancel",
     "owes": "owes",
     "getsBack": "gets back",
     "netBalance": "Net balance"
   },
   "summary": {
-    "title": "Trip summary",
+    "title": "Summary",
     "copy": "Copy",
     "copied": "✓ Copied",
     "byCategory": "By category",

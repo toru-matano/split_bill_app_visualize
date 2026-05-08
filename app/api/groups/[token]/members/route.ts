@@ -1,24 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseServer } from '@/lib/supabase-server'
+import { ValidationError } from '@/lib/validation'
 
-// POST /api/groups/[token]/members — add a member to existing group
+const db = supabaseServer
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
-    const { name } = await req.json()
-    if (!name?.trim()) return NextResponse.json({ error: 'Name required' }, { status: 400 })
+    const body = await req.json()
+    const name = typeof body.name === 'string' ? body.name.trim().slice(0, 100) : ''
+    if (!name) throw new ValidationError('Name required')
 
-    // Resolve group id from token
-    const { data: group, error: grpErr } = await supabase.from('groups').select('id').eq('share_token', token).single()
-    if (grpErr || !group) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
+    const { data: group } = await db.from('groups').select('id').eq('share_token', token).single()
+    if (!group) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
 
-    // Check for duplicate
-    const { data: existing } = await supabase.from('members').select('id').eq('group_id', group.id).ilike('name', name.trim())
+    const { data: existing } = await db.from('members').select('id')
+      .eq('group_id', group.id).ilike('name', name)
     if (existing && existing.length > 0) return NextResponse.json({ error: 'Duplicate name' }, { status: 409 })
 
-    const { data: member, error } = await supabase.from('members')
-      .insert({ group_id: group.id, name: name.trim() }).select().single()
+    const { data: member, error } = await db.from('members')
+      .insert({ group_id: group.id, name }).select().single()
     if (error) throw error
+
     return NextResponse.json({ id: member.id, name: member.name })
-  } catch (err) { console.error(err); return NextResponse.json({ error: 'Server error' }, { status: 500 }) }
+  } catch (err) {
+    if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status })
+    console.error('[POST /api/groups/members]', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 }

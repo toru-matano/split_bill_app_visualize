@@ -17,7 +17,6 @@ export default function Home() {
   return (
     <>
       {/* Font Awesome */}
-      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
       <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', paddingBottom: '100px' }}>
         <div style={{ position: 'absolute', top: 16, right: 16 }}>
@@ -25,7 +24,9 @@ export default function Home() {
         </div>
 
         <div style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}>
-          <div style={{ fontSize: 52, marginBottom: 16 }}>🧾</div>
+          <div style={{ fontSize: 52, marginBottom: 16 }}>
+            <img src="/icon-192.png" alt="SplitMate Logo" style={{ width: '100%', maxWidth: 100, height: 'auto' }} />
+          </div>
           <h1 style={{ marginBottom: 8 }}>{t('app.name')}</h1>
           <p style={{ marginBottom: 32 }}>{t('app.tagline')}<br />{t('app.taglineSub')}</p>
 
@@ -58,7 +59,6 @@ export default function Home() {
           )}
         </div>
       </main>
-
     </>
   )
 }

@@ -1,60 +1,74 @@
 // Exchange rates via frankfurter.app — free, no API key needed
-// Rates are cached per session in memory to avoid hammering the API
 
-const cache: Record<string, { rates: Record<string, number>; fetchedAt: number }> = {}
+const MEM_CACHE: Record<string, { rates: Record<string, number>; fetchedAt: number }> = {}
 const CACHE_TTL_MS = 1000 * 60 * 60 // 1 hour
+const SESSION_KEY = (base: string) => `splitmate_fx_${base}`
 
-export const SUPPORTED_CURRENCIES = ['JPY', 'USD', 'EUR', 'GBP', 'AUD', 'CAD', 'CHF', 'CNY', 'KRW', 'SGD', 'THB', 'HKD']
+export const SUPPORTED_CURRENCIES = ['JPY','USD','EUR','GBP','AUD','CAD','CHF','CNY','KRW','SGD','THB','HKD']
 
 export const CURRENCY_SYMBOLS: Record<string, string> = {
-  JPY: '¥', USD: '$', EUR: '€', GBP: '£',
+  JPY: '¥',  USD: '$',  EUR: '€',  GBP: '£',
   AUD: 'A$', CAD: 'C$', CHF: 'Fr', CNY: '¥',
-  KRW: '₩', SGD: 'S$', THB: '฿', HKD: 'HK$',
+  KRW: '₩',  SGD: 'S$', THB: '฿', HKD: 'HK$',
 }
 
 export const CURRENCY_NAMES: Record<string, string> = {
-  JPY: 'Japanese Yen', USD: 'US Dollar', EUR: 'Euro', GBP: 'British Pound',
-  AUD: 'Australian Dollar', CAD: 'Canadian Dollar', CHF: 'Swiss Franc',
-  CNY: 'Chinese Yuan', KRW: 'Korean Won', SGD: 'Singapore Dollar',
-  THB: 'Thai Baht', HKD: 'Hong Kong Dollar',
+  JPY: 'Japanese Yen',      USD: 'US Dollar',       EUR: 'Euro',
+  GBP: 'British Pound',     AUD: 'Australian Dollar', CAD: 'Canadian Dollar',
+  CHF: 'Swiss Franc',       CNY: 'Chinese Yuan',    KRW: 'Korean Won',
+  SGD: 'Singapore Dollar',  THB: 'Thai Baht',       HKD: 'Hong Kong Dollar',
+}
+
+function readSessionCache(base: string): Record<string, number> | null {
+  if (typeof sessionStorage === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY(base))
+    if (!raw) return null
+    const { rates, fetchedAt } = JSON.parse(raw)
+    if (Date.now() - fetchedAt < CACHE_TTL_MS) return rates
+  } catch { /* corrupt entry */ }
+  return null
+}
+
+function writeSessionCache(base: string, rates: Record<string, number>) {
+  if (typeof sessionStorage === 'undefined') return
+  try { sessionStorage.setItem(SESSION_KEY(base), JSON.stringify({ rates, fetchedAt: Date.now() })) } catch { /* quota */ }
 }
 
 /**
- * Fetch exchange rates with base currency.
- * Returns a map: { USD: 1.08, GBP: 0.86, ... } (how many units of each currency = 1 base unit)
+ * Returns rates relative to baseCurrency.
+ * Checks in-memory → sessionStorage → network, in that order.
  */
 export async function getRates(baseCurrency: string): Promise<Record<string, number>> {
   const now = Date.now()
-  const cached = cache[baseCurrency]
-  if (cached && now - cached.fetchedAt < CACHE_TTL_MS) {
-    return cached.rates
-  }
 
-  const url = `https://api.frankfurter.dev/v1/latest?from=${baseCurrency}&to=${SUPPORTED_CURRENCIES.filter(c => c !== baseCurrency).join(',')}`
+  // 1. In-memory (fastest — same component re-render)
+  const mem = MEM_CACHE[baseCurrency]
+  if (mem && now - mem.fetchedAt < CACHE_TTL_MS) return mem.rates
+
+  // 2. sessionStorage (survives page navigation within the same tab)
+  const session = readSessionCache(baseCurrency)
+  if (session) { MEM_CACHE[baseCurrency] = { rates: session, fetchedAt: now }; return session }
+
+  // 3. Network
+  const others = SUPPORTED_CURRENCIES.filter(c => c !== baseCurrency).join(',')
+  const url = `https://api.frankfurter.dev/v1/latest?from=${baseCurrency}&to=${others}`
   try {
     const res = await fetch(url, { next: { revalidate: 3600 } })
     const data = await res.json()
     const rates: Record<string, number> = { [baseCurrency]: 1, ...data.rates }
-    cache[baseCurrency] = { rates, fetchedAt: now }
+    MEM_CACHE[baseCurrency] = { rates, fetchedAt: now }
+    writeSessionCache(baseCurrency, rates)
     return rates
-  } catch (error) {
-    // Return identity if fetch fails — better than crashing
-    console.warn(`Failed to fetch exchange rates from ${url}\n— using fallback. Error:`, error)
+  } catch (err) {
+    console.warn('FX fetch failed, using identity rates:', err)
     return Object.fromEntries(SUPPORTED_CURRENCIES.map(c => [c, 1]))
   }
 }
 
-/**
- * Convert an amount from one currency to another using fetched rates.
- * rate = how many units of `to` per 1 unit of `from`
- */
 export function convert(amount: number, from: string, to: string, rates: Record<string, number>): number {
   if (from === to) return amount
   const fromRate = rates[from] ?? 1
-  const toRate = rates[to] ?? 1
-  // rates are relative to baseCurrency: convert via base
-  // amount_in_base = amount / fromRate (if base→from = fromRate, then from→base = 1/fromRate)
-  // But frankfurter gives rates as: 1 base = X foreign
-  // So: amount in `from` → base: amount / rates[from], then base → `to`: * rates[to]
+  const toRate   = rates[to]   ?? 1
   return (amount / fromRate) * toRate
 }
