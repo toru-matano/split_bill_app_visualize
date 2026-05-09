@@ -8,7 +8,7 @@ import { CURRENCY_SYMBOLS } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
 import { useGroup } from '@/hooks/useGroup'
 import LangPicker from '@/components/LangPicker'
-import { DeleteModal } from '@/components/PopupModal'
+import { DeleteModal, SuccessPopup } from '@/components/PopupModal'
 
 type PageProps = { params: Promise<{ token: string }> }
 
@@ -23,14 +23,6 @@ type TransferRecord = {
   created_at: string
 }
 
-function SuccessPopup({ message, onClose }: { message: string; onClose: () => void }) {
-  useEffect(() => { const t = setTimeout(onClose, 2500); return () => clearTimeout(t) }, [onClose])
-  return (
-    <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#22c55e', color: 'white', padding: '12px 24px', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, animation: 'slideDown 0.3s ease' }}>
-      ✓ {message}
-    </div>
-  )
-}
 
 const todayStr = () => new Date().toISOString().split('T')[0]
 
@@ -112,11 +104,20 @@ export default function SettlePage({ params }: PageProps) {
     if (!group || !fromMember || !toMember || !amount || fromMember === toMember) return
     setSubmitting(true)
     try {
-      const { data, error } = await supabase.from('transfer_records').insert({
-        group_id: group.id, from_member_id: fromMember, to_member_id: toMember,
-        amount: Number(amount), note: note.trim() || null, transfer_date: transferDate,
-      }).select().single()
-      if (!error && data) {
+      const res = await fetch('/api/transfers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          groupToken: token,
+          fromMemberId: fromMember,
+          toMemberId: toMember,
+          amount: Number(amount),
+          note: note.trim() || null,
+          transferDate,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
         const newRecords = [data, ...transferRecords]
         setTransferRecords(newRecords)
         const net = applyTransferRecords(baseBalances, newRecords)
@@ -161,7 +162,7 @@ export default function SettlePage({ params }: PageProps) {
   const handleDelete = async (id: string) => {
     setDeleteTarget(null)
     // if (!confirm('Delete this transfer record?')) return
-    await supabase.from('transfer_records').delete().eq('id', id)
+    await fetch(`/api/transfers?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`, { method: 'DELETE' })
     const newRecords = transferRecords.filter(r => r.id !== id)
     setTransferRecords(newRecords)
     const net = applyTransferRecords(baseBalances, newRecords)

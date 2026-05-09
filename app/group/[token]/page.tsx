@@ -1,5 +1,5 @@
 'use client'
-import { use, useEffect, useState, useCallback, useRef } from 'react'
+import { use, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Group, Member, Expense } from '@/lib/supabase'
@@ -8,85 +8,119 @@ import { CURRENCY_SYMBOLS } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
 import ShareSheet from '@/components/ShareSheet'
 import { useGroup } from '@/hooks/useGroup'
+import { cacheExpenseList, readExpenseCache, readDraft, clearDraft, invalidateExpenseCache } from '@/lib/expense-cache'
 import LangPicker from '@/components/LangPicker'
-
 
 export default function GroupPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
   const router = useRouter()
   const { t } = useI18n()
-  const [group, setGroup] = useState<Group | null>(null)
-  const [members, setMembers] = useState<Member[]>([])
+
+  // useGroup now returns both group + members from a single query
+  const { loading: groupLoading, group, members } = useGroup(token)
+
   const [expenses, setExpenses] = useState<Expense[]>([])
-  const [loading, setLoading] = useState(true)
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const [expLoading, setExpLoading] = useState(true)
   const [showShare, setShowShare] = useState(false)
   const [liveIndicator, setLiveIndicator] = useState(false)
   const [filterCat, setFilterCat] = useState<string>('all')
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null)
-  const groupIdRef = useRef<string | null>(null)
+  // const [deleting, setDeleting] = useState<string | null>(null)
+  // const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null)
 
+  // Save + remove from recent groups helpers
+  const saveToRecent = useCallback((grp: Group) => {
+    try {
+      const list = JSON.parse(localStorage.getItem('splitmate_recent_groups') || '[]')
+      if (!list.some((g: { shareToken: string }) => g.shareToken === grp.share_token)) {
+        list.unshift({ name: grp.name.trim(), shareToken: grp.share_token })
+        localStorage.setItem('splitmate_recent_groups', JSON.stringify(list.slice(0, 5)))
+      }
+    } catch { /* localStorage may be unavailable */ }
+  }, [])
+
+  // Load and cache expense list — stale-while-revalidate
   const loadExpenses = useCallback(async (groupId: string) => {
+    // 1. Show stale cache immediately so the page feels instant
+    const stale = readExpenseCache(groupId)
+    if (stale) setExpenses(stale)
+
+    // 2. Merge any optimistic draft (add/edit pending network confirm)
+    const draft = readDraft()
+    if (draft && draft.group_id === groupId) {
+      setExpenses(prev => {
+        const without = prev.filter(e => e.id !== draft.id)
+        return [draft as unknown as Expense, ...without]
+      })
+    }
+
+    // 3. Fetch fresh data in background
     const { data: exps } = await supabase
       .from('expenses')
       .select('*, member:paid_by(id,name)')
       .eq('group_id', groupId)
       .order('created_at', { ascending: false })
-    setExpenses((exps as Expense[]) ?? [])
+
+    const fresh = (exps as Expense[]) ?? []
+    setExpenses(fresh)
+    cacheExpenseList(groupId, fresh)
+    clearDraft() // confirmed by fresh fetch
+    setExpLoading(false)
   }, [])
 
-  const saveTokenToRecent = (name: string, shareToken: string) => {
-    const recentGroups = JSON.parse(localStorage.getItem('splitmate_recent_groups') || '[]')
-    if (!recentGroups.map((g: { shareToken: string }) => g.shareToken).includes(shareToken)) {
-      recentGroups.unshift({ name: name.trim(), shareToken })
-      localStorage.setItem('splitmate_recent_groups', JSON.stringify(recentGroups.slice(0, 5)))
-    }
-  }
-
-  const removeTokenFromRecent = (shareToken: string) => {
-    const recentGroups = JSON.parse(localStorage.getItem('splitmate_recent_groups') || '[]')
-    const updated = recentGroups.filter((g: { shareToken: string }) => g.shareToken !== shareToken)
-    localStorage.setItem('splitmate_recent_groups', JSON.stringify(updated))
-  }
-
-  const load = useCallback(async (tok: string) => {
-    const { data: grp } = await supabase.from('groups').select('*').eq('share_token', tok).single()
-    if (!grp) { removeTokenFromRecent(tok); setLoading(false); return }
-    setGroup(grp)
-    groupIdRef.current = grp.id
-    saveTokenToRecent(grp.name, grp.share_token)
-    const { data: mems } = await supabase.from('members').select('*').eq('group_id', grp.id)
-    setMembers(mems ?? [])
-    await loadExpenses(grp.id)
-    setLoading(false)
-  }, [loadExpenses])
-
-  useEffect(() => { if (token) load(token) }, [token, load])
-
+  // Trigger expense load once group is resolved
   useEffect(() => {
-    if (!groupIdRef.current) return
-    const groupId = groupIdRef.current
+    if (!group) return
+    saveToRecent(group)
+    loadExpenses(group.id)
+  }, [group, loadExpenses, saveToRecent])
+
+  // Realtime subscription — depends on group.id directly (no ref race)
+  useEffect(() => {
+    if (!group?.id) return
+    const groupId = group.id
     const channel = supabase
       .channel(`group-expenses-${groupId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `group_id=eq.${groupId}` }, () => {
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'expenses',
+        filter: `group_id=eq.${groupId}`,
+      }, () => {
         setLiveIndicator(true)
         setTimeout(() => setLiveIndicator(false), 1500)
+        invalidateExpenseCache(groupId)
         loadExpenses(groupId)
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [group, loadExpenses])
+  }, [group?.id, loadExpenses])
 
-  const deleteExpense = async (id: string) => {
-    setDeleting(id)
-    setDeleteTarget(null)
-    await fetch(`/api/expenses?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token ?? '')}`, { method: 'DELETE' })
-    setExpenses(prev => prev.filter(e => e.id !== id))
-    setDeleting(null)
-  }
+  // const deleteExpense = async (id: string) => {
+  //   setDeleting(id)
+  //   setDeleteTarget(null)
+  //   // Optimistic: remove from UI immediately
+  //   setExpenses(prev => prev.filter(e => e.id !== id))
+  //   await fetch(`/api/expenses?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`, {
+  //     method: 'DELETE',
+  //   })
+  //   setDeleting(null)
+  //   // Invalidate cache so next navigation gets fresh data
+  //   if (group?.id) invalidateExpenseCache(group.id)
+  // }
 
-  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p className="text-muted">Loading…</p></div>
-  if (!group) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><div style={{ textAlign: 'center' }}><p style={{ fontSize: 32, marginBottom: 12 }}>🔍</p><p className="text-muted">{t('group.notFound')}</p></div></div>
+  const loading = groupLoading || expLoading
+
+  if (loading && !group) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+      <p className="text-muted">Loading…</p>
+    </div>
+  )
+  if (!group) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+      <div style={{ textAlign: 'center' }}>
+        <p style={{ fontSize: 32, marginBottom: 12 }}>🔍</p>
+        <p className="text-muted">{t('group.notFound')}</p>
+      </div>
+    </div>
+  )
 
   const sym = CURRENCY_SYMBOLS[group.currency] ?? group.currency
   const shareUrl = typeof window !== 'undefined' ? window.location.href : ''
@@ -101,36 +135,27 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
             className="btn btn-ghost"
             onClick={() => router.push('/')}
             title="Home"
-            style={{
-              width: 70,
-              height: 42,
-              fontSize: 16,
-              borderWidth: 0,
-            }}
+            style={{ width: 42, height: 42, fontSize: 16, borderWidth: 0}}
           >
-              <img 
-                src="/icon-192.png" 
-                alt="icon" 
-                style={{ width: 24, height: 'auto' }}
-              />
+            <img src="/icon-192.png" alt="icon" style={{ width: 40 }} />
           </button>
         </span>
 
         <button
           className="btn btn-ghost"
           onClick={() => setShowShare(true)}
-          style={{ flexShrink: 0, width: 70, height: 42, gap: 0 }}
+          style={{ flexShrink: 0, width: 42, height: 42, borderWidth: 0 }}
           title={t('group.share')}
         >
-          <i className="fa-solid fa-share-nodes" style={{ fontSize: 20 }} />
+          <i className="fa-regular fa-share-from-square" style={{ fontSize: 25 }}></i>
         </button>
         <button
           className="btn btn-ghost"
           onClick={() => router.push(`/group/${token}/settings`)}
-          style={{ flexShrink: 0, width: 70, height: 42, padding: 0 }}
+          style={{ flexShrink: 0, width: 42, height: 42, borderWidth: 0 }}
           title="Settings"
         >
-          <i className="fa-solid fa-gear" style={{ fontSize: 20 }} />
+          <i className="fa-solid fa-gear" style={{ fontSize: 25 }} />
         </button>
         {liveIndicator && (
           <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -142,9 +167,7 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
       </nav>
 
       <div className="container" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-      {/* Group name */}
-       <h1>{group.name}</h1>
+        <h1>{group.name}</h1>
 
         {/* Members */}
         <div>
@@ -175,7 +198,7 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
           </button>
         </div>
 
-        {/* Ad slot */}
+        {/* Ad banner */}
         <AdBanner />
 
         {/* Expenses */}
@@ -208,9 +231,9 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
           ) : (
             <div className="card" style={{ padding: '4px 20px' }}>
               {filtered.map(e => {
-                const payer = e.member as unknown as Member | null
+                // const payer = e.member as unknown as Member | null
                 const cat = CATEGORIES[e.category as keyof typeof CATEGORIES] ?? CATEGORIES.other
-                const catLabel = t(`categories.${e.category}`) || cat.label
+                // const catLabel = t(`categories.${e.category}`) || cat.label
                 const isForeign = e.original_currency && e.original_currency !== group.currency
                 return (
                   <div key={e.id} className="expense-item">
@@ -236,6 +259,17 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
                         <i className="fa-solid fa-pen" style={{ fontSize: 11 }} />
                         {t('group.edit')}
                       </button>
+                      {/* <button
+                        className="btn btn-danger"
+                        style={{ height: 32, padding: '0 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}
+                        onClick={() => setDeleteTarget({ id: e.id, label: e.label || 'Expense' })}
+                        disabled={deleting === e.id}
+                      >
+                        {deleting === e.id
+                          ? t('group.deleting')
+                          : <><i className="fa-solid fa-trash" style={{ fontSize: 11 }} />{t('group.delete')}</>
+                        }
+                      </button> */}
                     </div>
                   </div>
                 )
@@ -247,24 +281,17 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
 
       {showShare && <ShareSheet url={shareUrl} groupName={group.name} onClose={() => setShowShare(false)} />}
 
-      {/* Absolute-positioned bottom button */}
-      {/* <div style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        padding: '16px 24px',
-        background: 'rgba(247,246,243,0.92)',
-        backdropFilter: 'blur(16px)',
-        borderTop: '1px solid var(--border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 18,
-        zIndex: 50,
-      }}>
-
-      </div> */}
+      {/* {deleteTarget && (
+        <DeleteModal
+          label={deleteTarget.label}
+          confirmTitle={t('group.deleteConfirmTitle')}
+          confirmMsg={t('group.deleteConfirmMsg')}
+          confirmBtn={t('group.deleteConfirmBtn')}
+          cancelBtn={t('group.deleteCancel')}
+          onConfirm={() => deleteExpense(deleteTarget.id)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )} */}
     </>
   )
 }

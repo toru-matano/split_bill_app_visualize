@@ -101,9 +101,6 @@ export default function SummaryPage({ params }: PageProps) {
           <i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> Back
         </a>
         <span className="navbar-title">{t('summary.title')}</span>
-        <button className="btn btn-ghost" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }} onClick={copyAsText}>
-          <i className="fa-solid fa-copy" style={{ fontSize: 13 }} />{copied ? t('summary.copied') : t('summary.copy')}
-        </button>
         <LangPicker />
       </nav>
 
@@ -213,6 +210,7 @@ export default function SummaryPage({ params }: PageProps) {
         </div>
 
         <button className="btn btn-secondary" onClick={copyAsText}>
+          <i className="fa-solid fa-copy" style={{ fontSize: 13 }} />
           {copied ? t('summary.copiedText') : t('summary.copyText')}
         </button>
       </div>

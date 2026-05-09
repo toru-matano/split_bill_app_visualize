@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { ValidationError, validateExpenseInput } from '@/lib/validation'
+import { checkMutationLimit, RateLimitError } from '@/lib/rate-limit'
 
 const db = supabaseServer
 
@@ -26,6 +27,9 @@ export async function POST(req: NextRequest) {
 
     const groupId: string = typeof body.groupId === 'string' ? body.groupId : ''
     if (!groupId) return NextResponse.json({ error: 'groupId required' }, { status: 400 })
+
+    const groupToken = typeof body.groupToken === 'string' ? body.groupToken : groupId
+    checkMutationLimit(groupToken)
 
     // Verify group exists
     const { data: grp } = await db.from('groups').select('id').eq('id', groupId).single()
@@ -54,6 +58,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ id: expense.id })
   } catch (err) {
     if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status })
+    if (err instanceof RateLimitError)  return NextResponse.json({ error: err.message }, { status: 429 })
     console.error('[POST /api/expenses]', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
@@ -67,6 +72,7 @@ export async function PUT(req: NextRequest) {
     if (!expenseId) return NextResponse.json({ error: 'expenseId required' }, { status: 400 })
 
     const groupToken = typeof body.groupToken === 'string' ? body.groupToken : undefined
+    if (groupToken) checkMutationLimit(groupToken)
     const guard = await resolveAndGuard(expenseId, groupToken)
     if (guard.error) return NextResponse.json({ error: guard.error }, { status: guard.status })
 
@@ -99,6 +105,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: true })
   } catch (err) {
     if (err instanceof ValidationError) return NextResponse.json({ error: err.message }, { status: err.status })
+    if (err instanceof RateLimitError)  return NextResponse.json({ error: err.message }, { status: 429 })
     console.error('[PUT /api/expenses]', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
@@ -111,6 +118,7 @@ export async function DELETE(req: NextRequest) {
     const expenseId = searchParams.get('id') ?? ''
     const groupToken = searchParams.get('token') ?? undefined
     if (!expenseId) return NextResponse.json({ error: 'id required' }, { status: 400 })
+    if (groupToken) checkMutationLimit(groupToken)
 
     const guard = await resolveAndGuard(expenseId, groupToken)
     if (guard.error) return NextResponse.json({ error: guard.error }, { status: guard.status })
@@ -125,6 +133,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (err) {
+    if (err instanceof RateLimitError) return NextResponse.json({ error: err.message }, { status: 429 })
     console.error('[DELETE /api/expenses]', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
