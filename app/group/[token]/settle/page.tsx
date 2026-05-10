@@ -173,7 +173,7 @@ export default function SettlePage({ params }: PageProps) {
 
       <nav className="navbar">
         <a className="btn-ghost btn" style={{ width: 'auto', height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => router.back()}>
-          <i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> Back
+          <i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> {t('nav.backSimple')}
         </a>
         <span className="navbar-title">{t('settle.title')}</span>
         <LangPicker />
@@ -181,73 +181,75 @@ export default function SettlePage({ params }: PageProps) {
 
       <div className="container" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* Hero */}
-        <div className="card" style={{ textAlign: 'center', padding: '28px 20px' }}>
-          {transfers.length === 0
-            ? <><div style={{ fontSize: 40, marginBottom: 12 }}>🎉</div><h2 style={{ marginBottom: 6 }}>{t('settle.allSettled')}</h2><p className="text-muted">{t('settle.allSettledSub')}</p></>
-            : <><div style={{ fontSize: 40, marginBottom: 12 }}>💸</div>
-               <h2 style={{ marginBottom: 6 }}>{transfers.length === 1 ? t('settle.transfersNeeded', { count: 1 }) : t('settle.transfersNeededPlural', { count: transfers.length })}</h2>
-               <p className="text-muted">{t('settle.minimumPayments')}</p></>
-          }
-        </div>
-
         {/* Balance chart */}
         <div>
           <p className="section-title">{t('settle.balanceChart')}</p>
           <div className="card" style={{ padding: '16px 20px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {members.map(m => {
                 const net = netBalances[m.id] ?? 0
                 const isPositive = net >= 0
                 const barWidth = Math.abs(net) / maxAbs * 100
                 return (
-                  <div key={m.id}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div key={m.id} style={{ display: 'flex', gap: 12, padding: '0px 0' }}>
+                    <div style={{ flex: 0 }}>
                         <div className="expense-avatar">{m.name.slice(0, 2).toUpperCase()}</div>
-                        <span style={{ fontSize: 14, fontWeight: 500 }}>{m.name}</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 14, fontWeight: 500 }}>{m.name}</span>
+                        </div>
+                        <span style={{ fontSize: 14, fontFamily: 'DM Mono, monospace', fontWeight: 600, color: net > thresholdMismatch ? 'var(--success)' : net < -thresholdMismatch ? 'var(--danger)' : 'var(--ink-3)' }}>
+                          {net > thresholdMismatch ? '+' : ''}{sym}{formatNumber(net)}
+                        </span>
                       </div>
-                      <span style={{ fontSize: 14, fontFamily: 'DM Mono, monospace', fontWeight: 600, color: net > thresholdMismatch ? 'var(--success)' : net < -thresholdMismatch ? 'var(--danger)' : 'var(--ink-3)' }}>
-                        {net > thresholdMismatch ? '+' : ''}{sym}{formatNumber(net)}
-                      </span>
-                    </div>
-                    <div style={{ position: 'relative', height: 10, background: 'var(--surface-3)', borderRadius: 5 }}>
-                      <div style={{ position: 'absolute', left: '50%', top: 0, width: 1, height: '100%', background: 'var(--border-2)', zIndex: 1 }} />
-                      <div style={{ position: 'absolute', top: 0, height: '100%', borderRadius: 5, width: `${barWidth / 2}%`, left: isPositive ? '50%' : `${50 - barWidth / 2}%`, background: isPositive ? 'var(--success)' : 'var(--danger)', transition: 'width 0.4s ease' }} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                      <span style={{ fontSize: 10, color: 'var(--danger)' }}>{t('settle.owes')}</span>
-                      <span style={{ fontSize: 10, color: 'var(--success)' }}>{t('settle.getsBack')}</span>
+                      <div style={{ position: 'relative', height: 10, background: 'var(--surface-3)', borderRadius: 5 }}>
+                        <div style={{ position: 'absolute', left: '50%', top: 0, width: 1, height: '100%', background: 'var(--border-2)', zIndex: 1 }} />
+                        <div style={{ position: 'absolute', top: 0, height: '100%', borderRadius: 5, width: `${barWidth / 2}%`, left: isPositive ? '50%' : `${50 - barWidth / 2}%`, background: isPositive ? 'var(--success)' : 'var(--danger)', transition: 'width 0.4s ease' }} />
+                      </div>
                     </div>
                   </div>
                 )
               })}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                        <div style={{ width: 32 }}/>
+                        <span style={{ fontSize: 10, flex:1, color: 'var(--danger)' }}>{t('settle.owes')}</span>
+                        <span style={{ fontSize: 10, color: 'var(--success)' }}>{t('settle.getsBack')}</span>
+                      </div>
             </div>
           </div>
         </div>
 
         {/* Who pays whom */}
-        {transfers.length > 0 && (
-          <div>
-            <p className="section-title">{t('settle.whoPaysWhom')}</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {transfers.map((tr, i) => (
-                <div key={i} className="transfer-item">
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--danger-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--danger)', flexShrink: 0 }}>
-                    {tr.fromName.slice(0, 2).toUpperCase()}
+        <div>
+          {transfers.length === 0
+            ? <>
+                <h2 style={{ marginBottom: 6 }}>🎉 {t('settle.allSettled')}</h2>
+              </>
+            : <>
+                <h2 style={{ marginBottom: 6 }}>💸 {transfers.length === 1 ? t('settle.transfersNeeded', { count: 1 }) : t('settle.transfersNeededPlural', { count: transfers.length })}</h2>
+              </>
+          }
+          {transfers.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {transfers.map((tr, i) => (
+                  <div key={i} className="transfer-item">
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--danger-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--danger)', flexShrink: 0 }}>
+                      {tr.fromName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 13, fontWeight: 500 }}>{tr.fromName} <span style={{ color: 'var(--ink-3)' }}>→</span> {tr.toName}</p>
+                    </div>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--success-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--success)', flexShrink: 0 }}>
+                      {tr.toName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <span className="transfer-amount">{sym}{formatNumber(tr.amount)}</span>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 13, fontWeight: 500 }}>{tr.fromName} <span style={{ color: 'var(--ink-3)' }}>→</span> {tr.toName}</p>
-                  </div>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--success-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--success)', flexShrink: 0 }}>
-                    {tr.toName.slice(0, 2).toUpperCase()}
-                  </div>
-                  <span className="transfer-amount">{sym}{formatNumber(tr.amount)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+                ))}
+              </div>
+          )}
+        </div>
 
         {/* Record transfer form */}
         {!showForm ? (
@@ -257,8 +259,7 @@ export default function SettlePage({ params }: PageProps) {
         ) : (
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <h3 style={{ margin: 0, fontSize: 15 }}>
-              <i className="fa-solid fa-pen"/>
-              {t('settle.newTransfer')}
+              <i className="fa-solid fa-pen"/> {t('settle.newTransfer')}
             </h3>
             <div>
               <label>{t('settle.fromWhoPaid')}</label>
@@ -309,8 +310,7 @@ export default function SettlePage({ params }: PageProps) {
                   /* ── Inline edit form ── */
                   <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <h3 style={{ margin: 0, fontSize: 15 }}>
-                      <i className="fa-solid fa-pen"/>
-                      {t('settle.editTransfer')}
+                      <i className="fa-solid fa-pen"/> {t('settle.editTransfer')}
                     </h3>
                     <div>
                       <label>{t('settle.fromWhoPaid')}</label>
@@ -343,13 +343,15 @@ export default function SettlePage({ params }: PageProps) {
                       {editSaving ? t('settle.saving') : t('settle.recordTransfer')}
                       </button>
                     </div>
-                    <button
-                      className="btn"
-                      onClick={() => setDeleteTarget({ id: record.id, label: `${memberName(record.from_member_id)} → ${memberName(record.to_member_id)}` })}
-                      style={{ flex: 1, color: 'white', background: 'var(--danger)', border: 'none', cursor: 'pointer',}}
-                    >
-                      {t('settle.deleteConfirmBtn')}
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        className="btn"
+                        onClick={() => setDeleteTarget({ id: record.id, label: `${memberName(record.from_member_id)} → ${memberName(record.to_member_id)}` })}
+                        style={{ flex: 1, color: 'white', background: 'var(--danger)', border: 'none', cursor: 'pointer', margin: '8px 0' }}
+                      >
+                        {t('settle.deleteConfirmBtn')}
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   /* ── Read view ── */
@@ -377,7 +379,7 @@ export default function SettlePage({ params }: PageProps) {
                           onClick={() => startEdit(record)}
                           style={{ fontSize: 11, color: 'var(--ink-2)', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                         >
-                          <i className="fa-solid fa-pen" style={{ fontSize: 10 }} /> Edit
+                          <i className="fa-solid fa-pen" style={{ fontSize: 10 }} /> {t('settle.editTransfer')}
                         </button>
                       </div>
                     </div>

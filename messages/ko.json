@@ -43,7 +43,9 @@
     "deleteConfirmTitle": "비용을 삭제할까요?",
     "deleteConfirmMsg": "이 비용이 영구적으로 삭제됩니다.",
     "deleteConfirmBtn": "삭제",
-    "deleteCancel": "취소"
+    "deleteCancel": "취소",
+    "encryptedNotice": "🔒 종단 간 암호화",
+    "encryptedSub": "멤버 이름과 지출 레이블은 암호화되어 있으며 이 링크를 가진 사람만 읽을 수 있습니다."
   },
   "categories": {
     "general": "일반",
@@ -96,6 +98,7 @@
     "minimumPayments": "최소 이체로 모든 정산",
     "recordTransfer": "이체 기록",
     "newTransfer": "새 이체",
+    "editTransfer": "편집",
     "fromWhoPaid": "보내는 사람",
     "toWhoReceived": "받는 사람",
     "senderReceiverDifferent": "보내는 사람과 받는 사람이 달라야 합니다",
@@ -131,7 +134,8 @@
     "allSettledSub": "모든 멤버가 공평하게 지불했습니다.",
     "expenseCount": "{count}건",
     "expenseCountPlural": "{count}건",
-    "perPerson": "1인당 {sym}{amount}"
+    "perPerson": "1인당 {sym}{amount}",
+    "back": "뒤로"
   },
   "share": {
     "title": "친구 초대",
@@ -140,10 +144,13 @@
     "copyLink": "링크 복사",
     "copied": "✓ 복사됨!",
     "share": "공유",
-    "close": "닫기"
+    "close": "닫기",
+    "nativeTitle": "Join \"{name}\" on Split Mate",
+    "nativeText": "그룹 지출을 함께 추적하세요 — 계정 불필요."
   },
   "nav": {
-    "back": "← 뒤로"
+    "back": "← 뒤로",
+    "backSimple": "뒤로"
   },
   "lang": {
     "label": "언어",
@@ -173,6 +180,40 @@
     "confirmDeletePlaceholder": "그룹 이름",
     "confirmDeleteMsg": "이 그룹은 영구적으로 삭제됩니다. 이 작업은 취소할 수 없습니다.",
     "confirmDeleteBtn": "영구 삭제",
-    "back": "← 뒤로"
+    "back": "← 뒤로",
+    "cancel": "취소",
+    "pushNotifications": "푸시 알림",
+    "pushNotificationsLabel": "지출 푸시 알림"
+  },
+  "loading": {
+    "default": "로딩 중…"
+  },
+  "member": {
+    "notFound": "멤버를 찾을 수 없음",
+    "paid": "지불",
+    "owes": "빚",
+    "balance": "잔액",
+    "netPosition": "차액",
+    "getsBack": "{sym}{amount} 돌려받음",
+    "owesAmount": "{sym}{amount} 빚짐",
+    "settled": "정산 완료",
+    "noExpenses": "아직 지출 없음",
+    "noTransfers": "송금 기록 없음",
+    "recordTransfer": "송금 기록",
+    "tabExpenses": "수지 ({count})",
+    "tabTransfers": "송금 ({count})",
+    "paidTo": "{name}에게 지불",
+    "receivedFrom": "{name}로부터 받음"
+  },
+  "push": {
+    "defaultLabel": "푸시 알림",
+    "subscribedHint": "지출이 변경될 때 알림을 받습니다",
+    "unsubscribedHint": "지출이 추가되거나 편집될 때 알림 받기",
+    "enableAriaLabel": "푸시 알림 활성화",
+    "disableAriaLabel": "푸시 알림 비활성화"
+  },
+  "ad": {
+    "label": "광고",
+    "placeholder": "Google AdSense <ins> tag"
   }
 }

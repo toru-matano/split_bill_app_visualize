@@ -36,9 +36,7 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
   const [newMemberName, setNewMemberName] = useState('')
   const [addingMember, setAddingMember] = useState(false)
   const [memberError, setMemberError] = useState('')
-  const [deleteConfirm, setDeleteConfirm] = useState('')
   const [deleting, setDeleting] = useState(false)
-  const [showDelete, setShowDelete] = useState(false)
 
   useEffect(() => {
     if (!token) return
@@ -94,18 +92,17 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
   }
 
   const handleDeleteGroup = async () => {
-    if (!group || deleteConfirm !== group.name || !token) return
+    if (!group || !token) return
     await fetch(`/api/groups/${token}`, { method: 'DELETE' })
     const saved = localStorage.getItem('splitmate_recent_groups')
     if (saved) localStorage.setItem('splitmate_recent_groups', JSON.stringify(JSON.parse(saved).filter((g: { shareToken: string }) => g.shareToken !== token)))
     router.push('/')
   }
 
-  if (fetching) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p className="text-muted">Loading…</p></div>
+  if (fetching) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p className="text-muted">{t('loading.default')}</p></div>
   if (!group) return null
 
   const sym = CURRENCY_SYMBOLS[group.currency] ?? group.currency
-  const canDelete = deleteConfirm === group.name
 
   return (
     <>
@@ -132,8 +129,8 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
           </div>
           {group && (
             <div>
-              <label style={{ marginBottom: 10, display: 'block' }}>Push Notifications</label>
-              <PushToggle groupId={group.id} label="Expense push notifications" />
+              <label style={{ marginBottom: 10, display: 'block' }}>{t('settings.pushNotifications')}</label>
+              <PushToggle groupId={group.id} label={t('settings.pushNotificationsLabel')} />
             </div>
           )}
           <button className="btn btn-primary" disabled={saving || !name.trim()} onClick={handleSave}>
@@ -168,28 +165,15 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
         <div>
           {/* <p className="section-title" style={{ color: 'var(--danger)' }}>{t('settings.dangerZone')}</p> */}
           <div className="card" style={{ border: '1px solid rgba(220,38,38,0.2)' }}>
-            {!showDelete ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
                   <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>{t('settings.deleteGroup')}</p>
-                  <p style={{ fontSize: 12, color: 'var(--ink-3)' }}>{members.length} members · {sym} base</p>
+                  {/* <p style={{ fontSize: 12, color: 'var(--ink-3)' }}>{members.length} members · {sym} base</p> */}
                 </div>
-                <button className="btn btn-danger" style={{ height: 36, padding: '0 16px', fontSize: 13, flexShrink: 0 }} onClick={() => setShowDelete(true)}>
+                <button className="btn btn-danger" style={{ height: 36, padding: '0 16px', fontSize: 13, flexShrink: 0 }} onClick={() => setDeleting(true)}>
                   {t('settings.deleteGroup')}
                 </button>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <p style={{ fontSize: 13, color: 'var(--danger)', fontWeight: 500 }}>{t('settings.confirmDelete')}</p>
-                <input value={deleteConfirm} onChange={e => setDeleteConfirm(e.target.value)} placeholder={t('settings.confirmDeletePlaceholder')} style={{ borderColor: deleteConfirm && !canDelete ? 'var(--danger)' : undefined }} autoFocus />
-                <div className="row" style={{ gap: 8 }}>
-                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setShowDelete(false); setDeleteConfirm('') }}>Cancel</button>
-                  <button className="btn" style={{ flex: 1, background: canDelete ? 'var(--danger)' : 'var(--surface-3)', color: canDelete ? 'white' : 'var(--ink-3)', opacity: deleting ? 0.6 : 1, cursor: canDelete ? 'pointer' : 'default', border: 'none' }} disabled={!canDelete || deleting} onClick={() => setDeleting(true)}>
-                    {deleting ? '…' : t('settings.confirmDeleteBtn')}
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -197,13 +181,14 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
 
       {deleting && (
         <DeleteModal
-          label={deleteConfirm}
+          label={group.name}
           confirmTitle={t('settings.deleteGroup')}
           confirmMsg={t('settings.deleteConfirmMsg')}
           confirmBtn={t('settings.confirmDeleteBtn')}
           cancelBtn={t('settings.back')}
           onConfirm={handleDeleteGroup}
           onCancel={() => setDeleting(false)}
+          strictMode={true}
         />
       )}
     </>

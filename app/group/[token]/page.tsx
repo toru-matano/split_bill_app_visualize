@@ -10,6 +10,7 @@ import { CURRENCY_SYMBOLS, formatNumber } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
 import ShareSheet from '@/components/ShareSheet'
 import LangPicker from '@/components/LangPicker'
+import ExpenseForm from '@/components/ExpenseForm'
 
 export default function GroupPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -19,11 +20,9 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
   const [members, setMembers] = useState<Member[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
-  const [deleting, setDeleting] = useState<string | null>(null)
   const [showShare, setShowShare] = useState(false)
   const [liveIndicator, setLiveIndicator] = useState(false)
   const [filterCat, setFilterCat] = useState<string>('all')
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null)
   const groupIdRef = useRef<string | null>(null)
   // Keep a ref to members so loadExpenses closure can resolve names
   const membersRef = useRef<Member[]>([])
@@ -91,15 +90,8 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
     return () => { supabase.removeChannel(channel) }
   }, [group, loadExpenses])
 
-  const deleteExpense = async (id: string) => {
-    setDeleting(id)
-    setDeleteTarget(null)
-    await fetch(`/api/expenses?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token ?? '')}`, { method: 'DELETE' })
-    setExpenses(prev => prev.filter(e => e.id !== id))
-    setDeleting(null)
-  }
 
-  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p className="text-muted">Loading…</p></div>
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p className="text-muted">{t('loading.default')}</p></div>
   if (!group) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><div style={{ textAlign: 'center' }}><p style={{ fontSize: 32, marginBottom: 12 }}>🔍</p><p className="text-muted">{t('group.notFound')}</p></div></div>
 
   const sym = CURRENCY_SYMBOLS[group.currency] ?? group.currency
@@ -133,11 +125,12 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
       <div className="container" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <h1>{group.name}</h1>
 
+        {/* Members list */}
         <div>
           <p className="section-title">{t('group.members')} ({members.length})</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {members.map(m => (
-              <span key={m.id} className="pill" style={{ borderRadius: 999 }}>
+              <span key={m.id} className="pill" style={{ borderRadius: 999, cursor: "pointer" }} onClick={() => router.push(`/group/${token}/member/${m.id}`)}>
                 <i className="fa-solid fa-user" style={{ fontSize: 11, color: 'var(--ink-3)' }} />
                 {m.name}
               </span>
@@ -145,13 +138,14 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
           </div>
         </div>
 
+        {/* Menu buttons */}
         <div className="row" style={{ gap: 10 }}>
           <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => router.push(`/group/${token}/add`)}>
             <i className="fa-solid fa-plus" style={{ fontSize: 13 }} /> {t('group.addExpense')}
           </button>
-          <button className="btn btn-secondary" style={{ flex: 1, width: 'auto' }} onClick={() => router.push(`/group/${token}/summary`)} disabled={expenses.length === 0}>
+          {/* <button className="btn btn-secondary" style={{ flex: 1, width: 'auto' }} onClick={() => router.push(`/group/${token}/summary`)} disabled={expenses.length === 0}>
             <i className="fa-solid fa-chart-bar" style={{ fontSize: 13 }} /> {t('group.viewSummary')}
-          </button>
+          </button> */}
           <button className="btn btn-secondary" style={{ flex: 1, width: 'auto' }} onClick={() => router.push(`/group/${token}/settle`)} disabled={expenses.length === 0}>
             <i className="fa-solid fa-scale-balanced" style={{ fontSize: 13 }} /> {t('group.settleUp')}
           </button>
@@ -221,6 +215,13 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
             </div>
           )}
         </div>
+
+        {/* Encrypted group indicator */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+          <i className="fa-solid fa-lock"/>
+          <p style={{ fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.4 }}>{t('group.encryptedSub')}</p>
+        </div>
+
       </div>
 
       {showShare && <ShareSheet url={shareUrl} groupName={group.name} onClose={() => setShowShare(false)} />}
@@ -229,11 +230,12 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
 }
 
 function AdBanner() {
+  const { t } = useI18n()
   return (
     <div style={{ borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-2)', background: 'var(--surface-2)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
       <div>
-        <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', marginBottom: 2 }}>Advertisement</p>
-        <p style={{ fontSize: 11, color: 'var(--ink-3)' }}>Google AdSense &lt;ins&gt; tag</p>
+        <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink-2)', marginBottom: 2 }}>{t('ad.label')}</p>
+        <p style={{ fontSize: 11, color: 'var(--ink-3)' }}>{t('ad.placeholder')}</p>
       </div>
       <span style={{ fontSize: 20 }}>📢</span>
     </div>

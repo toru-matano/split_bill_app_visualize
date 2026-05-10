@@ -51,11 +51,11 @@ export default function MemberDetailPage({ params }: PageProps) {
   }, [group, members, memberId])
 
   const loading = groupLoading || dataLoading
-  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p className="text-muted">Loading…</p></div>
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p className="text-muted">{t('loading.default')}</p></div>
   if (!group) return null
 
   const member = members.find(m => m.id === memberId)
-  if (!member) return <div style={{ padding: 24, textAlign: 'center' }}><p className="text-muted">Member not found</p></div>
+  if (!member) return <div style={{ padding: 24, textAlign: 'center' }}><p className="text-muted">{t('member.notFound')}</p></div>
 
   const sym            = CURRENCY_SYMBOLS[group.currency] ?? group.currency
   const paidExpenses   = expenses.filter(e => e.paid_by === memberId)
@@ -71,8 +71,8 @@ export default function MemberDetailPage({ params }: PageProps) {
   return (
     <>
       <nav className="navbar">
-        <a className="btn-ghost btn" style={{ width: 'auto', height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => router.push(`/group/${token}/summary`)}>
-          <i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> Back
+        <a className="btn-ghost btn" style={{ width: 'auto', height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => router.push(`/group/${token}`)}>
+          <i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> {t('nav.backSimple')}
         </a>
         <span className="navbar-title">{member.name}</span>
         <LangPicker />
@@ -89,9 +89,9 @@ export default function MemberDetailPage({ params }: PageProps) {
           <p style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: 20 }}>{group.name}</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
             {[
-              { label: 'Paid',    value: sym + formatNumber(totalPaid), color: 'var(--success)' },
-              { label: 'Owes',   value: sym + formatNumber(totalOwes), color: 'var(--danger)' },
-              { label: 'Balance', value: (netBalance > 0 ? '+' : '') + sym + formatNumber(Math.abs(netBalance)), color: netBalance > 0.5 ? 'var(--success)' : netBalance < -0.5 ? 'var(--danger)' : 'var(--ink-3)' },
+              { label: t('member.paid'),    value: sym + formatNumber(totalPaid), color: 'var(--success)' },
+              { label: t('member.owes'),   value: sym + formatNumber(totalOwes), color: 'var(--danger)' },
+              { label: t('member.balance'), value: (netBalance > 0 ? '+' : '') + sym + formatNumber(Math.abs(netBalance)), color: netBalance > 0.5 ? 'var(--success)' : netBalance < -0.5 ? 'var(--danger)' : 'var(--ink-3)' },
             ].map(stat => (
               <div key={stat.label} style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)', padding: '12px 8px', border: '1px solid var(--border)' }}>
                 <p style={{ fontSize: 10, color: 'var(--ink-3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{stat.label}</p>
@@ -104,12 +104,12 @@ export default function MemberDetailPage({ params }: PageProps) {
         {/* Balance bar */}
         <div className="card" style={{ padding: '16px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Net position</span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{t('member.netPosition')}</span>
             <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: netBalance > 0.5 ? '#dcfce7' : netBalance < -0.5 ? '#fee2e2' : 'var(--surface-2)', color: netBalance > 0.5 ? 'var(--success)' : netBalance < -0.5 ? 'var(--danger)' : 'var(--ink-3)' }}>
-              {netBalance > 0.5 ? `Gets back ${sym}${formatNumber(netBalance)}` : netBalance < -0.5 ? `Owes ${sym}${formatNumber(Math.abs(netBalance))}` : 'Settled'}
+              {netBalance > 0.5 ? t('member.getsBack', { sym, amount: formatNumber(netBalance) }) : netBalance < -0.5 ? t('member.owesAmount', { sym, amount: formatNumber(Math.abs(netBalance)) }) : t('member.settled')}
             </span>
           </div>
-          {[{ label: 'Paid', amount: totalPaid, color: 'var(--success)' }, { label: 'Owes', amount: totalOwes, color: 'var(--danger)' }].map(row => (
+          {[{ label: t('member.paid'), amount: totalPaid, color: 'var(--success)' }, { label: t('member.owes'), amount: totalOwes, color: 'var(--danger)' }].map(row => (
             <div key={row.label} style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                 <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{row.label}</span>
@@ -127,7 +127,7 @@ export default function MemberDetailPage({ params }: PageProps) {
           {(['expenses', 'transfers'] as const).map((tabKey, i) => (
             <button key={tabKey} onClick={() => setTab(tabKey)} style={{ flex: 1, padding: '10px', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', border: 'none', borderRight: i === 0 ? '1px solid var(--border-2)' : 'none', cursor: 'pointer', background: tab === tabKey ? 'var(--ink)' : 'var(--surface)', color: tab === tabKey ? 'white' : 'var(--ink-2)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <i className={`fa-solid ${tabKey === 'expenses' ? 'fa-receipt' : 'fa-arrow-right-arrow-left'}`} style={{ fontSize: 12 }} />
-              {tabKey === 'expenses' ? `Net (${involvedExpenses.length})` : `Transfers (${transfers.length})`}
+              {tabKey === 'expenses' ? t('member.tabExpenses', { count: involvedExpenses.length }) : t('member.tabTransfers', { count: transfers.length })}
             </button>
           ))}
         </div>
@@ -135,7 +135,7 @@ export default function MemberDetailPage({ params }: PageProps) {
         {/* Balance tab */}
         {tab === 'expenses' && (
           involvedExpenses.length === 0
-            ? <div className="card" style={{ textAlign: 'center', padding: 28 }}><p style={{ color: 'var(--ink-3)', fontSize: 14 }}>No expenses yet</p></div>
+            ? <div className="card" style={{ textAlign: 'center', padding: 28 }}><p style={{ color: 'var(--ink-3)', fontSize: 14 }}>{t('member.noExpenses')}</p></div>
             : <div className="card" style={{ padding: '4px 20px' }}>
                 {involvedExpenses.map(e => {
                   const isPayer  = e.paid_by === memberId
@@ -163,8 +163,8 @@ export default function MemberDetailPage({ params }: PageProps) {
         {tab === 'transfers' && (
           transfers.length === 0
             ? <div className="card" style={{ textAlign: 'center', padding: 28 }}>
-                <p style={{ color: 'var(--ink-3)', fontSize: 14 }}>No transfers recorded</p>
-                <button className="btn btn-secondary" style={{ marginTop: 12, fontSize: 13 }} onClick={() => router.push(`/group/${token}/settle`)}>Record a transfer</button>
+                <p style={{ color: 'var(--ink-3)', fontSize: 14 }}>{t('member.noTransfers')}</p>
+                <button className="btn btn-secondary" style={{ marginTop: 12, fontSize: 13 }} onClick={() => router.push(`/group/${token}/settle`)}>{t('member.recordTransfer')}</button>
               </div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {transfers.map(tr => {
@@ -176,7 +176,7 @@ export default function MemberDetailPage({ params }: PageProps) {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>
-                          {isSender ? <>Paid to <strong>{memberName(tr.to_member_id)}</strong></> : <>Received from <strong>{memberName(tr.from_member_id)}</strong></>}
+                          {isSender ? <>{t('member.paidTo').replace('{name}', '')} <strong>{memberName(tr.to_member_id)}</strong></> : <>{t('member.receivedFrom').replace('{name}', '')} <strong>{memberName(tr.from_member_id)}</strong></>}
                         </p>
                         <p style={{ fontSize: 11, color: 'var(--ink-3)' }}>{new Date(tr.transfer_date).toLocaleDateString()}{tr.note ? ` · ${tr.note}` : ''}</p>
                       </div>

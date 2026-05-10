@@ -43,7 +43,9 @@
     "deleteConfirmTitle": "Supprimer la dépense ?",
     "deleteConfirmMsg": "Cette dépense sera supprimée définitivement.",
     "deleteConfirmBtn": "Supprimer",
-    "deleteCancel": "Annuler"
+    "deleteCancel": "Annuler",
+    "encryptedNotice": "🔒 Chiffrement de bout en bout",
+    "encryptedSub": "Les noms des membres et les libellés des dépenses sont chiffrés et ne peuvent être lus que par les personnes ayant ce lien."
   },
   "categories": {
     "general": "Général",
@@ -96,6 +98,7 @@
     "minimumPayments": "Virements minimum pour tout régler",
     "recordTransfer": "Enregistrer un virement",
     "newTransfer": "Nouveau virement",
+    "editTransfer": "Modifier",
     "fromWhoPaid": "De (qui a payé)",
     "toWhoReceived": "À (qui reçoit)",
     "senderReceiverDifferent": "L'expéditeur et le destinataire doivent être différents",
@@ -131,7 +134,8 @@
     "allSettledSub": "Tout le monde a payé sa juste part.",
     "expenseCount": "{count} dépense",
     "expenseCountPlural": "{count} dépenses",
-    "perPerson": "{sym}{amount} par personne"
+    "perPerson": "{sym}{amount} par personne",
+    "back": "Retour"
   },
   "share": {
     "title": "Inviter des amis",
@@ -140,10 +144,13 @@
     "copyLink": "Copier le lien",
     "copied": "✓ Copié !",
     "share": "Partager",
-    "close": "Fermer"
+    "close": "Fermer",
+    "nativeTitle": "Join \"{name}\" on Split Mate",
+    "nativeText": "Suivez nos dépenses de groupe ensemble — aucun compte requis."
   },
   "nav": {
-    "back": "← Retour"
+    "back": "← Retour",
+    "backSimple": "Retour"
   },
   "lang": {
     "label": "Langue",
@@ -173,6 +180,40 @@
     "confirmDeletePlaceholder": "Nom du groupe",
     "deleteConfirmMsg": "Ce groupe sera supprimé définitivement. Cela ne peut pas être annulé.",
     "confirmDeleteBtn": "Supprimer définitivement",
-    "back": "← Retour"
+    "back": "← Retour",
+    "cancel": "Annuler",
+    "pushNotifications": "Notifications push",
+    "pushNotificationsLabel": "Notifications push pour les dépenses"
+  },
+  "loading": {
+    "default": "Chargement…"
+  },
+  "member": {
+    "notFound": "Membre introuvable",
+    "paid": "Payé",
+    "owes": "Doit",
+    "balance": "Solde",
+    "netPosition": "Position nette",
+    "getsBack": "Récupère {sym}{amount}",
+    "owesAmount": "Doit {sym}{amount}",
+    "settled": "Soldé",
+    "noExpenses": "Aucune dépense",
+    "noTransfers": "Aucun virement enregistré",
+    "recordTransfer": "Enregistrer un virement",
+    "tabExpenses": "Net ({count})",
+    "tabTransfers": "Virements ({count})",
+    "paidTo": "Payé à {name}",
+    "receivedFrom": "Reçu de {name}"
+  },
+  "push": {
+    "defaultLabel": "Notifications push",
+    "subscribedHint": "Vous serez notifié lorsque les dépenses changent",
+    "unsubscribedHint": "Être notifié lors de l'ajout ou modification de dépenses",
+    "enableAriaLabel": "Activer les notifications push",
+    "disableAriaLabel": "Désactiver les notifications push"
+  },
+  "ad": {
+    "label": "Publicité",
+    "placeholder": "Google AdSense <ins> tag"
   }
 }

@@ -30,7 +30,7 @@ export default function ShareSheet({ url, groupName, onClose }: Props) {
   }
 
   const nativeShare = () => {
-    navigator.share({ title: `Join "${groupName}" on Split Mate`, text: 'Track our group expenses together — no account needed.', url }).catch(() => {})
+    navigator.share({ title: t('share.nativeTitle', { name: groupName }), text: t('share.nativeText'), url }).catch(() => {})
   }
 
   const downloadQR = () => {

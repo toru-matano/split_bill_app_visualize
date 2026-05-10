@@ -43,7 +43,9 @@
     "deleteConfirmTitle": "Delete expense?",
     "deleteConfirmMsg": "This will permanently remove this expense.",
     "deleteConfirmBtn": "Delete",
-    "deleteCancel": "Cancel"
+    "deleteCancel": "Cancel",
+    "encryptedNotice": "🔒 End-to-end encrypted",
+    "encryptedSub": "Member names and expense labels are encrypted and can only be read by people with this link."
   },
   "categories": {
     "general": "General",
@@ -96,6 +98,7 @@
     "minimumPayments": "Minimum payments to settle all debts",
     "recordTransfer": "Record transfer",
     "newTransfer": "New transfer",
+    "editTransfer": "Edit",
     "fromWhoPaid": "From (who paid)",
     "toWhoReceived": "To (who received)",
     "senderReceiverDifferent": "Sender and receiver must be different",
@@ -131,7 +134,8 @@
     "allSettledSub": "Everyone paid their fair share.",
     "expenseCount": "{count} expense",
     "expenseCountPlural": "{count} expenses",
-    "perPerson": "{sym}{amount} per person"
+    "perPerson": "{sym}{amount} per person",
+    "back": "Back"
   },
   "share": {
     "title": "Invite friends",
@@ -140,10 +144,13 @@
     "copyLink": "Copy link",
     "copied": "✓ Copied!",
     "share": "Share",
-    "close": "Close"
+    "close": "Close",
+    "nativeTitle": "Join \"{name}\" on Split Mate",
+    "nativeText": "Track our group expenses together — no account needed."
   },
   "nav": {
-    "back": "← Back"
+    "back": "← Back",
+    "backSimple": "Back"
   },
   "lang": {
     "label": "Language",
@@ -173,6 +180,40 @@
     "confirmDeletePlaceholder": "Group name",
     "deleteConfirmMsg": "This group will be permanently deleted. This cannot be undone.",
     "confirmDeleteBtn": "Delete permanently",
-    "back": "← Back"
+    "back": "← Back",
+    "cancel": "Cancel",
+    "pushNotifications": "Push Notifications",
+    "pushNotificationsLabel": "Expense push notifications"
+  },
+  "loading": {
+    "default": "Loading…"
+  },
+  "member": {
+    "notFound": "Member not found",
+    "paid": "Paid",
+    "owes": "Owes",
+    "balance": "Balance",
+    "netPosition": "Net position",
+    "getsBack": "Gets back {sym}{amount}",
+    "owesAmount": "Owes {sym}{amount}",
+    "settled": "Settled",
+    "noExpenses": "No expenses yet",
+    "noTransfers": "No transfers recorded",
+    "recordTransfer": "Record a transfer",
+    "tabExpenses": "Net ({count})",
+    "tabTransfers": "Transfers ({count})",
+    "paidTo": "Paid to",
+    "receivedFrom": "Received from"
+  },
+  "push": {
+    "defaultLabel": "Push notifications",
+    "subscribedHint": "You'll get notified when expenses change",
+    "unsubscribedHint": "Get notified when expenses are added or edited",
+    "enableAriaLabel": "Enable push notifications",
+    "disableAriaLabel": "Disable push notifications"
+  },
+  "ad": {
+    "label": "Advertisement",
+    "placeholder": "Google AdSense <ins> tag"
   }
 }

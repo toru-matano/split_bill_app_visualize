@@ -337,7 +337,7 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
 
   if (groupLoading || fetching) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-      <p className="text-muted">Loading…</p>
+      <p className="text-muted">{t('loading.default')}</p>
     </div>
   )
 
@@ -359,7 +359,7 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
           style={{ width: 'auto', height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
           onClick={() => router.back()}
         >
-          <i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> Back
+          <i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> {t('nav.backSimple')}
         </a>
         <span className="navbar-title">{isEdit ? t('edit.title') : t('add.title')}</span>
         <LangPicker />

@@ -43,7 +43,9 @@
     "deleteConfirmTitle": "費用を削除しますか？",
     "deleteConfirmMsg": "この費用は完全に削除されます。",
     "deleteConfirmBtn": "削除",
-    "deleteCancel": "キャンセル"
+    "deleteCancel": "キャンセル",
+    "encryptedNotice": "🔒 エンドツーエンド暗号化",
+    "encryptedSub": "メンバーと費用の記録は暗号化されており、このリンクを持つ人だけが読めます。"
   },
   "categories": {
     "general": "一般",
@@ -96,6 +98,7 @@
     "minimumPayments": "全額精算に必要な最少送金",
     "recordTransfer": "送金を記録",
     "newTransfer": "新しい送金",
+    "editTransfer": "編集",
     "fromWhoPaid": "送金元",
     "toWhoReceived": "送金先",
     "senderReceiverDifferent": "送金元と送金先が異なる必要があります",
@@ -131,7 +134,8 @@
     "allSettledSub": "全員が公平に支払いました。",
     "expenseCount": "{count}件",
     "expenseCountPlural": "{count}件",
-    "perPerson": "1人あたり{sym}{amount}"
+    "perPerson": "1人あたり{sym}{amount}",
+    "back": "戻る"
   },
   "share": {
     "title": "友達を招待",
@@ -140,10 +144,13 @@
     "copyLink": "リンクをコピー",
     "copied": "✓ コピー済み！",
     "share": "共有",
-    "close": "閉じる"
+    "close": "閉じる",
+    "nativeTitle": "Join \"{name}\" on Split Mate",
+    "nativeText": "グループの支出を一緒に管理しましょう — アカウント不要。"
   },
   "nav": {
-    "back": "← 戻る"
+    "back": "← 戻る",
+    "backSimple": "戻る"
   },
   "lang": {
     "label": "言語",
@@ -173,6 +180,40 @@
     "deleteConfirmMsg": "このグループは完全に削除されます。元に戻せません。",
     "confirmDeletePlaceholder": "グループ名",
     "confirmDeleteBtn": "完全に削除",
-    "back": "← 戻る"
+    "back": "← 戻る",
+    "cancel": "キャンセル",
+    "pushNotifications": "プッシュ通知",
+    "pushNotificationsLabel": "支出プッシュ通知"
+  },
+  "loading": {
+    "default": "読み込み中…"
+  },
+  "member": {
+    "notFound": "メンバーが見つかりません",
+    "paid": "支払い",
+    "owes": "負債",
+    "balance": "残高",
+    "netPosition": "差引",
+    "getsBack": "{sym}{amount} を受け取る",
+    "owesAmount": "{sym}{amount} を支払う",
+    "settled": "精算済み",
+    "noExpenses": "まだ支出なし",
+    "noTransfers": "振替記録なし",
+    "recordTransfer": "振替を記録",
+    "tabExpenses": "収支 ({count})",
+    "tabTransfers": "振替 ({count})",
+    "paidTo": "{name} に支払い",
+    "receivedFrom": "{name} から受け取り"
+  },
+  "push": {
+    "defaultLabel": "プッシュ通知",
+    "subscribedHint": "支出が変更されたときに通知を受け取ります",
+    "unsubscribedHint": "支出が追加または編集されたときに通知を受け取る",
+    "enableAriaLabel": "プッシュ通知を有効にする",
+    "disableAriaLabel": "プッシュ通知を無効にする"
+  },
+  "ad": {
+    "label": "広告",
+    "placeholder": "Google AdSense <ins> tag"
   }
 }

@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { subscribeToPush, getPushSubscription, unsubscribeFromPush } from '@/lib/push'
+import { useI18n } from '@/lib/i18n'
 
 type Props = {
   groupId: string
@@ -9,7 +10,8 @@ type Props = {
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 
-export default function PushToggle({ groupId, label = 'Push notifications' }: Props) {
+export default function PushToggle({ groupId, label }: Props) {
+  const { t } = useI18n()
   const [supported, setSupported] = useState(false)
   const [subscribed, setSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -65,15 +67,15 @@ export default function PushToggle({ groupId, label = 'Push notifications' }: Pr
       borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
     }}>
       <div>
-        <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>{label}</p>
+        <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>{label ?? t('push.defaultLabel')}</p>
         <p style={{ fontSize: 12, color: 'var(--ink-3)' }}>
-          {subscribed ? 'You\'ll get notified when expenses change' : 'Get notified when expenses are added or edited'}
+          {subscribed ? t('push.subscribedHint') : t('push.unsubscribedHint')}
         </p>
       </div>
       <button
         onClick={toggle}
         disabled={loading}
-        aria-label={subscribed ? 'Disable push notifications' : 'Enable push notifications'}
+        aria-label={subscribed ? t('push.disableAriaLabel') : t('push.enableAriaLabel')}
         style={{
           width: 48, height: 26, borderRadius: 13,
           background: subscribed ? 'var(--success, #22c55e)' : '#d1d5db',

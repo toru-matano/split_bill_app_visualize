@@ -43,7 +43,9 @@
     "deleteConfirmTitle": "¿Eliminar gasto?",
     "deleteConfirmMsg": "Este gasto se eliminará permanentemente.",
     "deleteConfirmBtn": "Eliminar",
-    "deleteCancel": "Cancelar"
+    "deleteCancel": "Cancelar",
+    "encryptedNotice": "🔒 Cifrado de extremo a extremo",
+    "encryptedSub": "Los nombres de los miembros y las etiquetas de gastos están cifrados y solo pueden ser leídos por personas con este enlace."
   },
   "categories": {
     "general": "General",
@@ -96,6 +98,7 @@
     "minimumPayments": "Pagos mínimos para liquidar todo",
     "recordTransfer": "Registrar transferencia",
     "newTransfer": "Nueva transferencia",
+    "editTransfer": "Editar",
     "fromWhoPaid": "De (quien pagó)",
     "toWhoReceived": "A (quien recibe)",
     "senderReceiverDifferent": "El remitente y el destinatario deben ser diferentes",
@@ -131,7 +134,8 @@
     "allSettledSub": "Todos han pagado su parte.",
     "expenseCount": "{count} gasto",
     "expenseCountPlural": "{count} gastos",
-    "perPerson": "{sym}{amount} por persona"
+    "perPerson": "{sym}{amount} por persona",
+    "back": "Volver"
   },
   "share": {
     "title": "Invitar amigos",
@@ -140,10 +144,13 @@
     "copyLink": "Copiar enlace",
     "copied": "✓ ¡Copiado!",
     "share": "Compartir",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "nativeTitle": "Join \"{name}\" on Split Mate",
+    "nativeText": "Rastrea nuestros gastos grupales juntos — sin cuenta necesaria."
   },
   "nav": {
-    "back": "← Atrás"
+    "back": "← Atrás",
+    "backSimple": "Volver"
   },
   "lang": {
     "label": "Idioma",
@@ -173,6 +180,40 @@
     "confirmDeletePlaceholder": "Nombre del grupo",
     "deleteConfirmMsg": "Este grupo se eliminará permanentemente. Esto no se puede deshacer.",
     "confirmDeleteBtn": "Eliminar permanentemente",
-    "back": "← Atrás"
+    "back": "← Atrás",
+    "cancel": "Cancelar",
+    "pushNotifications": "Notificaciones push",
+    "pushNotificationsLabel": "Notificaciones push de gastos"
+  },
+  "loading": {
+    "default": "Cargando…"
+  },
+  "member": {
+    "notFound": "Miembro no encontrado",
+    "paid": "Pagado",
+    "owes": "Debe",
+    "balance": "Saldo",
+    "netPosition": "Posición neta",
+    "getsBack": "Recupera {sym}{amount}",
+    "owesAmount": "Debe {sym}{amount}",
+    "settled": "Saldado",
+    "noExpenses": "Sin gastos aún",
+    "noTransfers": "Sin transferencias registradas",
+    "recordTransfer": "Registrar una transferencia",
+    "tabExpenses": "Neto ({count})",
+    "tabTransfers": "Transferencias ({count})",
+    "paidTo": "Pagado a {name}",
+    "receivedFrom": "Recibido de {name}"
+  },
+  "push": {
+    "defaultLabel": "Notificaciones push",
+    "subscribedHint": "Recibirá notificaciones cuando los gastos cambien",
+    "unsubscribedHint": "Recibir notificación cuando se añadan o editen gastos",
+    "enableAriaLabel": "Habilitar notificaciones push",
+    "disableAriaLabel": "Deshabilitar notificaciones push"
+  },
+  "ad": {
+    "label": "Publicidad",
+    "placeholder": "Google AdSense <ins> tag"
   }
 }

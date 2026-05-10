@@ -1,7 +1,10 @@
 'use client'
+/**
+ * this page is deprecated
+ * 
+ */
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Member } from '@/lib/supabase'
 import type { Transfer } from '@/lib/supabase'
 import { fetchGroupExpenses, fetchGroupSplits, type DecryptedExpense } from '@/lib/expenses-api'
 import { CATEGORIES } from '@/lib/categories'
@@ -25,6 +28,7 @@ export default function SummaryPage({ params }: PageProps) {
   const [dataLoading, setDataLoading] = useState(true)
   const [copied, setCopied]           = useState(false)
 
+  console.warn("SummaryPage is deprecated and will be removed in a future release.")
   useEffect(() => {
     if (!group || members.length === 0) return
     ;(async () => {

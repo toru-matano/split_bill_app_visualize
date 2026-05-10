@@ -43,7 +43,9 @@
     "deleteConfirmTitle": "删除费用？",
     "deleteConfirmMsg": "此费用将被永久删除。",
     "deleteConfirmBtn": "删除",
-    "deleteCancel": "取消"
+    "deleteCancel": "取消",
+    "encryptedNotice": "🔒 端到端加密",
+    "encryptedSub": "成员名称和支出标签已加密，只有拥有此链接的人才能查看。"
   },
   "categories": {
     "general": "综合",
@@ -96,6 +98,7 @@
     "minimumPayments": "最少转账次数以结清所有债务",
     "recordTransfer": "记录转账",
     "newTransfer": "新转账",
+    "editTransfer": "编辑",
     "fromWhoPaid": "付款方",
     "toWhoReceived": "收款方",
     "senderReceiverDifferent": "付款方和收款方必须不同",
@@ -131,7 +134,8 @@
     "allSettledSub": "每人都已公平分摊。",
     "expenseCount": "{count}笔费用",
     "expenseCountPlural": "{count}笔费用",
-    "perPerson": "每人{sym}{amount}"
+    "perPerson": "每人{sym}{amount}",
+    "back": "返回"
   },
   "share": {
     "title": "邀请好友",
@@ -140,10 +144,13 @@
     "copyLink": "复制链接",
     "copied": "✓ 已复制！",
     "share": "分享",
-    "close": "关闭"
+    "close": "关闭",
+    "nativeTitle": "使用{name}分摊费用",
+    "nativeText": "与朋友一起管理群组支出 — 无需账号。"
   },
   "nav": {
-    "back": "← 返回"
+    "back": "← 返回",
+    "backSimple": "返回"
   },
   "lang": {
     "label": "语言",
@@ -173,6 +180,40 @@
     "confirmDeletePlaceholder": "群组名称",
     "confirmDeleteMsg": "此群组将被永久删除。此操作无法撤销。",
     "confirmDeleteBtn": "永久删除",
-    "back": "← 返回"
+    "back": "← 返回",
+    "cancel": "取消",
+    "pushNotifications": "推送通知",
+    "pushNotificationsLabel": "支出推送通知"
+  },
+  "loading": {
+    "default": "加载中…"
+  },
+  "member": {
+    "notFound": "成员未找到",
+    "paid": "已支付",
+    "owes": "欠款",
+    "balance": "余额",
+    "netPosition": "净额",
+    "getsBack": "应收 {sym}{amount}",
+    "owesAmount": "应付 {sym}{amount}",
+    "settled": "已结清",
+    "noExpenses": "暂无费用",
+    "noTransfers": "暂无转账记录",
+    "recordTransfer": "记录转账",
+    "tabExpenses": "费用 ({count})",
+    "tabTransfers": "转账 ({count})",
+    "paidTo": "支付给 {name}",
+    "receivedFrom": "从 {name} 收到"
+  },
+  "push": {
+    "defaultLabel": "推送通知",
+    "subscribedHint": "当费用发生变动时接收通知",
+    "unsubscribedHint": "接收费用添加或编辑的通知",
+    "enableAriaLabel": "启用推送通知",
+    "disableAriaLabel": "禁用推送通知"
+  },
+  "ad": {
+    "label": "广告",
+    "placeholder": "Google AdSense <ins> 标签"
   }
 }
