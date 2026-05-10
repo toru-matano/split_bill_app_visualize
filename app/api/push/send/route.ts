@@ -13,6 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import webpushLib from 'web-push'
 import { supabaseServer } from '@/lib/supabase-server'
 import { decrypt } from '@/lib/crypto'
 
@@ -21,29 +22,47 @@ const db = supabaseServer
 // ── Internal helper: decrypt and send a single push notification ─────────────
 async function sendWebPush(
   sub: {
-    endpoint_enc : Buffer | string
-    p256dh_enc   : Buffer | string | null
-    auth_enc     : Buffer | string | null
+    subscription_id : string
+    endpoint_enc    : Buffer | string
+    p256dh_enc      : Buffer | string | null
+    auth_enc        : Buffer | string | null
   },
   payload: string,
-) {
-  const webpush        = await import('web-push')
+): Promise<'sent' | 'stale' | 'error'> {
   const vapidPublicKey  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
   const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY
   const vapidEmail      = process.env.VAPID_EMAIL ?? 'mailto:admin@splitmate.app'
-  if (!vapidPublicKey || !vapidPrivateKey) return  // VAPID not configured; skip silently
 
-  // ── Decrypt immediately before use; never stored as local variables beyond ──
-  //    this function scope.
-  const endpoint = decrypt(sub.endpoint_enc as Buffer)
-  const p256dh   = sub.p256dh_enc ? decrypt(sub.p256dh_enc as Buffer) : ''
-  const auth     = sub.auth_enc   ? decrypt(sub.auth_enc   as Buffer) : ''
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    console.error('[push/send] VAPID keys missing — set NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY')
+    return 'error'
+  }
 
-  webpush.setVapidDetails(vapidEmail, vapidPublicKey, vapidPrivateKey)
-  await webpush.sendNotification(
-    { endpoint, keys: { p256dh, auth } },
-    payload,
-  )
+  // Bug 4 fix: webpushLib is the correct default import from web-push (CJS pkg).
+  // Using the static import at the top of the file avoids the `.default` dance.
+  let endpoint: string, p256dh: string, auth: string
+  try {
+    endpoint = decrypt(sub.endpoint_enc as Buffer)
+    p256dh   = sub.p256dh_enc ? decrypt(sub.p256dh_enc as Buffer) : ''
+    auth     = sub.auth_enc   ? decrypt(sub.auth_enc   as Buffer) : ''
+  } catch (err) {
+    console.error(`[push/send] Failed to decrypt subscription ${sub.subscription_id}:`, err)
+    return 'error'
+  }
+
+  try {
+    webpushLib.setVapidDetails(vapidEmail, vapidPublicKey, vapidPrivateKey)
+    await webpushLib.sendNotification({ endpoint, keys: { p256dh, auth } }, payload)
+    return 'sent'
+  } catch (err: unknown) {
+    const status = (err as { statusCode?: number })?.statusCode
+    if (status === 410 || status === 404) {
+      return 'stale'  // Browser unsubscribed — clean up
+    }
+    // Bug 5 fix: log all other errors so they're visible in server logs
+    console.error(`[push/send] sendNotification failed for ${sub.subscription_id}:`, err)
+    return 'error'
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -76,15 +95,9 @@ export async function POST(req: NextRequest) {
 
     await Promise.all(
       secureSubs.map(async sub => {
-        try {
-          await sendWebPush(sub, payload)
-          sent++
-        } catch (err: unknown) {
-          const status = (err as { statusCode?: number })?.statusCode
-          if (status === 410 || status === 404) {
-            staleIds.push(sub.subscription_id)
-          }
-        }
+        const result = await sendWebPush(sub, payload)
+        if (result === 'sent')  sent++
+        if (result === 'stale') staleIds.push(sub.subscription_id)
       }),
     )
 
@@ -96,6 +109,7 @@ export async function POST(req: NextRequest) {
         .in('id', staleIds)
     }
 
+    console.log(`[push/send] groupId=${groupId} sent=${sent} stale=${staleIds.length} total=${secureSubs.length}`)
     return NextResponse.json({ ok: true, sent })
   } catch (err) {
     console.error('[POST /api/push/send]', err)

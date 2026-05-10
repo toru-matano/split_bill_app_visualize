@@ -1,59 +1,84 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { subscribeToPush, getPushSubscription, unsubscribeFromPush } from '@/lib/push'
+import { getPushSubscription, unsubscribeFromPush, subscribeToPush } from '@/lib/push'
 import { useI18n } from '@/lib/i18n'
 
 type Props = {
   groupId: string
-  label?: string
+  label?:  string
 }
-
-const VAPID_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 
 export default function PushToggle({ groupId, label }: Props) {
   const { t } = useI18n()
-  const [supported, setSupported] = useState(false)
-  const [subscribed, setSubscribed] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [supported,   setSupported]   = useState(false)
+  const [subscribed,  setSubscribed]  = useState(false)
+  const [loading,     setLoading]     = useState(true)
 
+  // ── Check current subscription state on mount ────────────────────────────
   useEffect(() => {
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) return
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      setLoading(false)
+      return
+    }
     setSupported(true)
-    getPushSubscription().then(sub => setSubscribed(!!sub))
+
+    // Bug 2 fix: use getRegistrations() to find any active SW, not a specific
+    // scope string, then check pushManager subscription status.
+    navigator.serviceWorker.getRegistrations().then(async regs => {
+      for (const reg of regs) {
+        const sub = await reg.pushManager.getSubscription()
+        if (sub) { setSubscribed(true); break }
+      }
+      setLoading(false)
+    })
   }, [])
 
   const toggle = async () => {
     setLoading(true)
     try {
       if (subscribed) {
+        // Unsubscribe: tell server to remove the endpoint, then unsubscribe locally
         const sub = await getPushSubscription()
         if (sub) {
           await fetch('/api/push/subscribe', {
-            method: 'DELETE',
+            method:  'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ endpoint: sub.endpoint }),
+            body:    JSON.stringify({ endpoint: sub.endpoint }),
           })
           await unsubscribeFromPush()
         }
         setSubscribed(false)
       } else {
-        if (!VAPID_KEY) {
-          alert('Push notifications require NEXT_PUBLIC_VAPID_PUBLIC_KEY to be set.')
+        // Bug 1 fix: read NEXT_PUBLIC_ var here at call time, not at module level.
+        // Next.js statically replaces process.env.NEXT_PUBLIC_* at build time,
+        // so this is still a compile-time constant — but reading it here avoids
+        // the empty-string trap caused by the module-level assignment running
+        // before the build replacement is applied in certain bundler configs.
+        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
+        if (!vapidKey) {
+          alert('Push notifications are not configured (missing VAPID key). Please contact support.')
           setLoading(false)
           return
         }
-        const sub = await subscribeToPush(VAPID_KEY)
+
+        const sub = await subscribeToPush(vapidKey)
         if (sub) {
-          await fetch('/api/push/subscribe', {
-            method: 'POST',
+          const res = await fetch('/api/push/subscribe', {
+            method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ groupId, subscription: sub.toJSON() }),
+            body:    JSON.stringify({ groupId, subscription: sub.toJSON() }),
           })
-          setSubscribed(true)
+          if (res.ok) {
+            setSubscribed(true)
+          } else {
+            // API rejected — clean up the browser subscription too
+            await sub.unsubscribe()
+            console.error('[PushToggle] subscribe API failed', await res.text())
+          }
         }
       }
     } catch (e) {
-      console.error('Push toggle error:', e)
+      console.error('[PushToggle] toggle error:', e)
     }
     setLoading(false)
   }
@@ -67,9 +92,13 @@ export default function PushToggle({ groupId, label }: Props) {
       borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
     }}>
       <div>
-        <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>{label ?? t('push.defaultLabel')}</p>
+        <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 2 }}>
+          {label ?? t('push.defaultLabel')}
+        </p>
         <p style={{ fontSize: 12, color: 'var(--ink-3)' }}>
-          {subscribed ? t('push.subscribedHint') : t('push.unsubscribedHint')}
+          {loading
+            ? 'Checking…'
+            : subscribed ? t('push.subscribedHint') : t('push.unsubscribedHint')}
         </p>
       </div>
       <button
@@ -78,7 +107,7 @@ export default function PushToggle({ groupId, label }: Props) {
         aria-label={subscribed ? t('push.disableAriaLabel') : t('push.enableAriaLabel')}
         style={{
           width: 48, height: 26, borderRadius: 13,
-          background: subscribed ? 'var(--success, #22c55e)' : '#d1d5db',
+          background: loading ? '#9ca3af' : subscribed ? 'var(--success, #22c55e)' : '#d1d5db',
           border: 'none', cursor: loading ? 'wait' : 'pointer',
           position: 'relative', transition: 'background 0.2s', flexShrink: 0,
         }}
