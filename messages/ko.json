@@ -171,6 +171,7 @@
     "deleteGroup": "그룹 삭제",
     "confirmDelete": "삭제 확인을 위해 그룹 이름 입력",
     "confirmDeletePlaceholder": "그룹 이름",
+    "confirmDeleteMsg": "이 그룹은 영구적으로 삭제됩니다. 이 작업은 취소할 수 없습니다.",
     "confirmDeleteBtn": "영구 삭제",
     "back": "← 뒤로"
   }

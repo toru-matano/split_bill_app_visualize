@@ -1,4 +1,5 @@
 import type { Transfer, Member } from './supabase'
+import { thresholdMismatch } from './fx';
 
 type BalanceInput = {
   payers: { member_id: string; amount: number }[]
@@ -32,12 +33,12 @@ export function calculateSettlement({ payers, splits, members }: BalanceInput): 
   const balances = computeBalances(payers, splits, members)
 
   const creditors = Object.entries(balances)
-    .filter(([, v]) => v > 0.01)
+    .filter(([, v]) => v > thresholdMismatch)
     .map(([id, amount]) => ({ id, amount }))
     .sort((a, b) => b.amount - a.amount)
 
   const debtors = Object.entries(balances)
-    .filter(([, v]) => v < -0.01)
+    .filter(([, v]) => v < -thresholdMismatch)
     .map(([id, amount]) => ({ id, amount: -amount }))
     .sort((a, b) => b.amount - a.amount)
 
@@ -49,19 +50,19 @@ export function calculateSettlement({ payers, splits, members }: BalanceInput): 
     const debt   = debtors[j]
     const amount = Math.min(credit.amount, debt.amount)
 
-    if (amount > 0.01) {
+    if (amount > thresholdMismatch) {
       transfers.push({
         from: debt.id, to: credit.id,
         fromName: memberMap[debt.id]   ?? debt.id,
         toName:   memberMap[credit.id] ?? credit.id,
-        amount: Math.round(amount),
+        amount: amount,
       })
     }
 
     credit.amount -= amount
     debt.amount   -= amount
-    if (credit.amount < 0.01) i++
-    if (debt.amount   < 0.01) j++
+    if (credit.amount < thresholdMismatch) i++
+    if (debt.amount   < thresholdMismatch) j++
   }
 
   return transfers
@@ -77,11 +78,11 @@ export function settleFromBalances(
 ): Transfer[] {
   const memberMap = Object.fromEntries(members.map(m => [m.id, m.name]))
   const creditors = Object.entries(balances)
-    .filter(([, v]) => v > 0.01)
+    .filter(([, v]) => v > thresholdMismatch)
     .map(([id, amount]) => ({ id, amount }))
     .sort((a, b) => b.amount - a.amount)
   const debtors = Object.entries(balances)
-    .filter(([, v]) => v < -0.01)
+    .filter(([, v]) => v < -thresholdMismatch)
     .map(([id, amount]) => ({ id, amount: -amount }))
     .sort((a, b) => b.amount - a.amount)
 
@@ -90,12 +91,12 @@ export function settleFromBalances(
   while (i < creditors.length && j < debtors.length) {
     const credit = creditors[i], debt = debtors[j]
     const amount = Math.min(credit.amount, debt.amount)
-    if (amount > 0.01) {
-      transfers.push({ from: debt.id, to: credit.id, fromName: memberMap[debt.id] ?? debt.id, toName: memberMap[credit.id] ?? credit.id, amount: Math.round(amount) })
+    if (amount > thresholdMismatch) {
+      transfers.push({ from: debt.id, to: credit.id, fromName: memberMap[debt.id] ?? debt.id, toName: memberMap[credit.id] ?? credit.id, amount: amount })
     }
     credit.amount -= amount; debt.amount -= amount
-    if (credit.amount < 0.01) i++
-    if (debt.amount < 0.01) j++
+    if (credit.amount < thresholdMismatch) i++
+    if (debt.amount < thresholdMismatch) j++
   }
   return transfers
 }

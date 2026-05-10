@@ -72,3 +72,14 @@ export function convert(amount: number, from: string, to: string, rates: Record<
   const toRate   = rates[to]   ?? 1
   return (amount / fromRate) * toRate
 }
+
+const MaximumFractionDigits = 2
+export const thresholdMismatch = 10 ** -MaximumFractionDigits // Allowed mismatch in totals due to rounding, etc.
+
+export function formatNumber(amount: number): string {
+  return `${
+    amount.toLocaleString(undefined, {
+        minimumFractionDigits: 0, maximumFractionDigits: MaximumFractionDigits
+    })
+  }`
+}

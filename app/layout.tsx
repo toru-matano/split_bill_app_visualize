@@ -28,24 +28,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <link rel="apple-touch-icon" href="/icon-192.png" />
-        {/* Preconnect so the TLS handshake is done before the CSS is requested */}
-        <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossOrigin="anonymous" />
-        {/* Font Awesome — non-render-blocking: loads as print, switches to all on load */}
+        {/* Font Awesome loaded once here — never in individual page components */}
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
           crossOrigin="anonymous"
-          // media="print"
-          // onLoad="this.media='all'"
         />
-        {/* Fallback for no-JS: render FA normally: deprecated*/}
-        {/* <noscript>
-          <link
-            rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-            crossOrigin="anonymous"
-          />
-        </noscript> */}
       </head>
       <body>
         <I18nProvider>{children}</I18nProvider>

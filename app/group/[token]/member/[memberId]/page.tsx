@@ -2,7 +2,7 @@
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import type { Expense } from '@/lib/supabase'
+import { fetchGroupExpenses, type DecryptedExpense } from '@/lib/expenses-api'
 import { CATEGORIES } from '@/lib/categories'
 import { CURRENCY_SYMBOLS } from '@/lib/fx'
 import { computeBalances } from '@/lib/settle'
@@ -20,20 +20,18 @@ export default function MemberDetailPage({ params }: PageProps) {
   const { t } = useI18n()
   const { loading: groupLoading, group, members } = useGroup(token)
 
-  const [expenses, setExpenses] = useState<Expense[]>([])
+  const [expenses, setExpenses]         = useState<DecryptedExpense[]>([])
   const [memberSplits, setMemberSplits] = useState<SplitRow[]>([])
-  const [transfers, setTransfers] = useState<TransferRecord[]>([])
-  const [netBalance, setNetBalance] = useState(0)
-  const [dataLoading, setDataLoading] = useState(true)
-  const [tab, setTab] = useState<'expenses' | 'transfers'>('expenses')
+  const [transfers, setTransfers]       = useState<TransferRecord[]>([])
+  const [netBalance, setNetBalance]     = useState(0)
+  const [dataLoading, setDataLoading]   = useState(true)
+  const [tab, setTab]                   = useState<'expenses' | 'transfers'>('expenses')
 
   useEffect(() => {
     if (!group || members.length === 0) return
     ;(async () => {
-      const { data: exps } = await supabase
-        .from('expenses').select('*, member:paid_by(id,name)')
-        .eq('group_id', group.id).order('created_at', { ascending: false })
-      const expList = (exps as Expense[]) ?? []
+      // ── Fetch decrypted expenses from server API ───────────────────────
+      const expList = await fetchGroupExpenses(group.id)
       setExpenses(expList)
 
       if (expList.length === 0) { setDataLoading(false); return }
@@ -67,16 +65,16 @@ export default function MemberDetailPage({ params }: PageProps) {
   const member = members.find(m => m.id === memberId)
   if (!member) return <div style={{ padding: 24, textAlign: 'center' }}><p className="text-muted">Member not found</p></div>
 
-  const sym = CURRENCY_SYMBOLS[group.currency] ?? group.currency
-  const paidExpenses = expenses.filter(e => e.paid_by === memberId)
-  const totalPaid = paidExpenses.reduce((s, e) => s + Number(e.amount), 0)
-  const totalOwes = memberSplits.reduce((s, sp) => s + Number(sp.amount), 0)
-  const groupTotal = expenses.reduce((s, e) => s + Number(e.amount), 0)
-  const fair = members.length > 0 ? groupTotal / members.length : 0
-  const splitSet = new Set(memberSplits.map(s => s.expense_id))
+  const sym            = CURRENCY_SYMBOLS[group.currency] ?? group.currency
+  const paidExpenses   = expenses.filter(e => e.paid_by === memberId)
+  const totalPaid      = paidExpenses.reduce((s, e) => s + e.amount, 0)
+  const totalOwes      = memberSplits.reduce((s, sp) => s + Number(sp.amount), 0)
+  const groupTotal     = expenses.reduce((s, e) => s + e.amount, 0)
+  const fair           = members.length > 0 ? groupTotal / members.length : 0
+  const splitSet       = new Set(memberSplits.map(s => s.expense_id))
   const involvedExpenses = expenses.filter(e => e.paid_by === memberId || splitSet.has(e.id))
-  const memberName = (id: string) => members.find(m => m.id === id)?.name ?? id
-  const maxBar = Math.max(totalPaid, totalOwes, 1)
+  const memberName     = (id: string) => members.find(m => m.id === id)?.name ?? id
+  const maxBar         = Math.max(totalPaid, totalOwes, 1)
 
   return (
     <>
@@ -93,7 +91,7 @@ export default function MemberDetailPage({ params }: PageProps) {
         {/* Hero */}
         <div className="card" style={{ textAlign: 'center', padding: '28px 20px' }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, color: 'var(--ink-2)', margin: '0 auto 14px', border: '2px solid var(--border)' }}>
-            {member.name.slice(0,2).toUpperCase()}
+            {member.name.slice(0, 2).toUpperCase()}
           </div>
           <h2 style={{ marginBottom: 4 }}>{member.name}</h2>
           <p style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: 20 }}>{group.name}</p>
@@ -151,8 +149,7 @@ export default function MemberDetailPage({ params }: PageProps) {
                   const isPayer  = e.paid_by === memberId
                   const splitRow = memberSplits.find(s => s.expense_id === e.id)
                   const cat      = CATEGORIES[e.category as keyof typeof CATEGORIES] ?? CATEGORIES.other
-                  const amount   = isPayer ? Number(e.amount) : 0
-                  const payer    = e.member as unknown as { name: string } | null
+                  const amount   = isPayer ? e.amount : 0
                   const dateStr  = e.expense_date ?? new Date(e.created_at).toISOString().split('T')[0]
                   return (
                     <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '13px 0', borderBottom: '1px solid var(--border)' }}>

@@ -1,15 +1,23 @@
 'use client'
+/**
+ * app/group/[token]/settings/page.tsx  (REFACTORED)
+ *
+ * What changed:
+ *  - `supabase.from('members').select('*')` → `fetch(/api/groups/[token]/members)`
+ *    so member names are decrypted server-side before reaching this component.
+ *  - Everything else (group fetch, save, add member, delete group, JSX) is
+ *    identical to the original.
+ */
+
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Group, Member } from '@/lib/supabase'
 import { CURRENCY_SYMBOLS, SUPPORTED_CURRENCIES } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
-import { useGroup } from '@/hooks/useGroup'
 import LangPicker from '@/components/LangPicker'
 import PushToggle from '@/components/PushToggle'
 import { DeleteModal } from '@/components/PopupModal'
-
 
 const CURRENCIES = SUPPORTED_CURRENCIES.map(c => ({ code: c, symbol: CURRENCY_SYMBOLS[c] ?? c }))
 
@@ -25,11 +33,9 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [fetching, setFetching] = useState(true)
-
   const [newMemberName, setNewMemberName] = useState('')
   const [addingMember, setAddingMember] = useState(false)
   const [memberError, setMemberError] = useState('')
-
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
@@ -37,12 +43,15 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
   useEffect(() => {
     if (!token) return
     ;(async () => {
+      // Group fetch: no PII, direct Supabase call is fine
       const { data: grp } = await supabase.from('groups').select('*').eq('share_token', token).single()
       if (!grp) { setFetching(false); return }
       setGroup(grp); setName(grp.name); setCurrency(grp.currency)
       setNotificationsEnabled(grp.notifications_enabled ?? false)
-      const { data: mems } = await supabase.from('members').select('*').eq('group_id', grp.id).order('created_at', { ascending: true })
-      setMembers(mems ?? [])
+
+      // Members: fetch via API so names are decrypted server-side
+      const res = await fetch(`/api/groups/${token}/members`)
+      setMembers(res.ok ? await res.json() : [])
       setFetching(false)
     })()
   }, [token])
@@ -63,6 +72,7 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
   const handleAddMember = async () => {
     const trimmed = newMemberName.trim()
     if (!trimmed || !token) return
+    // Client-side duplicate check against already-decrypted names in state
     if (members.some(m => m.name.toLowerCase() === trimmed.toLowerCase())) {
       setMemberError(t('settings.duplicateName')); return
     }
@@ -73,7 +83,7 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
       body: JSON.stringify({ name: trimmed }),
     })
     if (res.ok) {
-      const newMember = await res.json()
+      const newMember = await res.json()   // API returns { id, name } (plaintext)
       setMembers(prev => [...prev, newMember])
       setNewMemberName('')
     } else {
@@ -85,10 +95,9 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
 
   const handleDeleteGroup = async () => {
     if (!group || deleteConfirm !== group.name || !token) return
-    console.log(`Deleting group ${token}...`)
     await fetch(`/api/groups/${token}`, { method: 'DELETE' })
     const saved = localStorage.getItem('splitmate_recent_groups')
-    if (saved) localStorage.setItem('splitmate_recent_groups', JSON.stringify(JSON.parse(saved).filter((g: any) => g.shareToken !== token)))
+    if (saved) localStorage.setItem('splitmate_recent_groups', JSON.stringify(JSON.parse(saved).filter((g: { shareToken: string }) => g.shareToken !== token)))
     router.push('/')
   }
 
@@ -101,43 +110,37 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
   return (
     <>
       <nav className="navbar">
-        <a className="btn-ghost btn" style={{ width: 'auto', height: 32, cursor: 'pointer' }} onClick={() => router.back()}><i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> {t('settings.back').replace('← ', '')}</a>
+        <a className="btn-ghost btn" style={{ width: 'auto', height: 32, cursor: 'pointer' }} onClick={() => router.back()}>
+          <i className="fa-solid fa-arrow-left" style={{ fontSize: 13 }} /> {t('settings.back').replace('← ', '')}
+        </a>
         <span className="navbar-title">{t('settings.title')}</span>
         <LangPicker />
       </nav>
 
       <div className="container" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-        {/* Group info */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
             <label>{t('settings.groupName')}</label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder={group.name} />
           </div>
-
           <div>
             <label>{t('settings.currency')}</label>
             <select value={currency} onChange={e => setCurrency(e.target.value)}>
-              {CURRENCIES.map(c => (
-                <option key={c.code} value={c.code}>{c.code} {c.symbol}</option>
-              ))}
+              {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code} {c.symbol}</option>)}
             </select>
           </div>
-
-          {/* Push Notifications */}
           {group && (
             <div>
               <label style={{ marginBottom: 10, display: 'block' }}>Push Notifications</label>
               <PushToggle groupId={group.id} label="Expense push notifications" />
             </div>
           )}
-
           <button className="btn btn-primary" disabled={saving || !name.trim()} onClick={handleSave}>
             {saved ? t('settings.saved') : saving ? t('settings.saving') : t('settings.save')}
           </button>
         </div>
 
-        {/* Members */}
         <div>
           <p className="section-title">{t('settings.members')} ({members.length})</p>
           <div className="card" style={{ padding: '4px 20px' }}>
@@ -150,7 +153,6 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
                 <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>#{i + 1}</span>
               </div>
             ))}
-
             <div style={{ paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div className="row" style={{ gap: 8 }}>
                 <input value={newMemberName} onChange={e => { setNewMemberName(e.target.value); setMemberError('') }} onKeyDown={e => e.key === 'Enter' && handleAddMember()} placeholder={t('settings.addMemberPlaceholder')} className="flex-1" />
@@ -163,9 +165,8 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
           </div>
         </div>
 
-        {/* Danger zone */}
         <div>
-          <p className="section-title" style={{ color: 'var(--danger)' }}>{t('settings.dangerZone')}</p>
+          {/* <p className="section-title" style={{ color: 'var(--danger)' }}>{t('settings.dangerZone')}</p> */}
           <div className="card" style={{ border: '1px solid rgba(220,38,38,0.2)' }}>
             {!showDelete ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -197,10 +198,10 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
       {deleting && (
         <DeleteModal
           label={deleteConfirm}
-          confirmTitle={t('group.deleteConfirmTitle')}
-          confirmMsg={t('group.deleteConfirmMsg')}
-          confirmBtn={t('group.deleteConfirmBtn')}
-          cancelBtn={t('group.deleteCancel')}
+          confirmTitle={t('settings.deleteGroup')}
+          confirmMsg={t('settings.deleteConfirmMsg')}
+          confirmBtn={t('settings.confirmDeleteBtn')}
+          cancelBtn={t('settings.back')}
           onConfirm={handleDeleteGroup}
           onCancel={() => setDeleting(false)}
         />

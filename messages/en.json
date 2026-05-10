@@ -171,6 +171,7 @@
     "deleteGroup": "Delete group",
     "confirmDelete": "Type the group name to confirm deletion",
     "confirmDeletePlaceholder": "Group name",
+    "deleteConfirmMsg": "This group will be permanently deleted. This cannot be undone.",
     "confirmDeleteBtn": "Delete permanently",
     "back": "← Back"
   }

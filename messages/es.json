@@ -171,6 +171,7 @@
     "deleteGroup": "Eliminar grupo",
     "confirmDelete": "Escribe el nombre del grupo para confirmar la eliminación",
     "confirmDeletePlaceholder": "Nombre del grupo",
+    "deleteConfirmMsg": "Este grupo se eliminará permanentemente. Esto no se puede deshacer.",
     "confirmDeleteBtn": "Eliminar permanentemente",
     "back": "← Atrás"
   }

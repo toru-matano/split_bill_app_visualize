@@ -171,6 +171,7 @@
     "deleteGroup": "Supprimer le groupe",
     "confirmDelete": "Saisissez le nom du groupe pour confirmer la suppression",
     "confirmDeletePlaceholder": "Nom du groupe",
+    "deleteConfirmMsg": "Ce groupe sera supprimé définitivement. Cela ne peut pas être annulé.",
     "confirmDeleteBtn": "Supprimer définitivement",
     "back": "← Retour"
   }

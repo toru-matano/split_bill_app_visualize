@@ -37,7 +37,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const expenseIds = (expenses ?? []).map(e => e.id)
 
     if (expenseIds.length > 0) {
-      // Parallel cascade delete of child rows
+      // Parallel cascade delete
       await Promise.all([
         db.from('expense_payers').delete().in('expense_id', expenseIds),
         db.from('expense_splits').delete().in('expense_id', expenseIds),
@@ -45,12 +45,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       await db.from('expenses').delete().eq('group_id', grp.id)
     }
 
-    // Delete transfer_records if the table exists — isolated try so failures don't abort
-    try {
-      await db.from('transfer_records').delete().eq('group_id', grp.id)
-    } catch { /* table may not exist yet */ }
+    await Promise.all([
+      db.from('members').delete().eq('group_id', grp.id),
+      db.from('transfer_records').delete().eq('group_id', grp.id).throwOnError(),
+    ]).catch(() => {}) // transfer_records may not exist yet
 
-    // Delete members once, then the group
     await db.from('members').delete().eq('group_id', grp.id)
     await db.from('groups').delete().eq('id', grp.id)
 

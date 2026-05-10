@@ -171,6 +171,7 @@
     "deleteGroup": "删除群组",
     "confirmDelete": "输入群组名称以确认删除",
     "confirmDeletePlaceholder": "群组名称",
+    "confirmDeleteMsg": "此群组将被永久删除。此操作无法撤销。",
     "confirmDeleteBtn": "永久删除",
     "back": "← 返回"
   }

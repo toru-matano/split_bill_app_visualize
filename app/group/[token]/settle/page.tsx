@@ -4,11 +4,11 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { computeBalances, settleFromBalances } from '@/lib/settle'
 import type { Transfer } from '@/lib/supabase'
-import { CURRENCY_SYMBOLS } from '@/lib/fx'
+import { CURRENCY_SYMBOLS, formatNumber, thresholdMismatch } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
 import { useGroup } from '@/hooks/useGroup'
 import LangPicker from '@/components/LangPicker'
-import { DeleteModal, SuccessPopup } from '@/components/PopupModal'
+import { DeleteModal } from '@/components/PopupModal'
 
 type PageProps = { params: Promise<{ token: string }> }
 
@@ -23,6 +23,14 @@ type TransferRecord = {
   created_at: string
 }
 
+function SuccessPopup({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => { const t = setTimeout(onClose, 2500); return () => clearTimeout(t) }, [onClose])
+  return (
+    <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#22c55e', color: 'white', padding: '12px 24px', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, animation: 'slideDown 0.3s ease' }}>
+      ✓ {message}
+    </div>
+  )
+}
 
 const todayStr = () => new Date().toISOString().split('T')[0]
 
@@ -104,25 +112,17 @@ export default function SettlePage({ params }: PageProps) {
     if (!group || !fromMember || !toMember || !amount || fromMember === toMember) return
     setSubmitting(true)
     try {
-      const res = await fetch('/api/transfers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          groupToken: token,
-          fromMemberId: fromMember,
-          toMemberId: toMember,
-          amount: Number(amount),
-          note: note.trim() || null,
-          transferDate,
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
+      const { data, error } = await supabase.from('transfer_records').insert({
+        group_id: group.id, from_member_id: fromMember, to_member_id: toMember,
+        amount: Number(amount), note: note.trim() || null, transfer_date: transferDate,
+      }).select().single()
+      if (!error && data) {
         const newRecords = [data, ...transferRecords]
         setTransferRecords(newRecords)
         const net = applyTransferRecords(baseBalances, newRecords)
-        setNetBalances(net); setTransfers(settleFromBalances(net, members))
-        setSuccessMsg(`Recorded: ${memberName(fromMember)} → ${memberName(toMember)} ${sym}${Number(amount).toLocaleString()}`)
+        setNetBalances(net)
+        setTransfers(settleFromBalances(net, members))
+        setSuccessMsg(`Recorded: ${memberName(fromMember)} → ${memberName(toMember)} ${sym}${amount}`)
         setShowSuccess(true)
         setAmount(''); setNote(''); setShowForm(false)
       }
@@ -162,7 +162,7 @@ export default function SettlePage({ params }: PageProps) {
   const handleDelete = async (id: string) => {
     setDeleteTarget(null)
     // if (!confirm('Delete this transfer record?')) return
-    await fetch(`/api/transfers?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`, { method: 'DELETE' })
+    await supabase.from('transfer_records').delete().eq('id', id)
     const newRecords = transferRecords.filter(r => r.id !== id)
     setTransferRecords(newRecords)
     const net = applyTransferRecords(baseBalances, newRecords)
@@ -212,8 +212,8 @@ export default function SettlePage({ params }: PageProps) {
                         <div className="expense-avatar">{m.name.slice(0, 2).toUpperCase()}</div>
                         <span style={{ fontSize: 14, fontWeight: 500 }}>{m.name}</span>
                       </div>
-                      <span style={{ fontSize: 14, fontFamily: 'DM Mono, monospace', fontWeight: 600, color: net > 0.5 ? 'var(--success)' : net < -0.5 ? 'var(--danger)' : 'var(--ink-3)' }}>
-                        {net > 0.5 ? '+' : ''}{sym}{Math.round(net).toLocaleString()}
+                      <span style={{ fontSize: 14, fontFamily: 'DM Mono, monospace', fontWeight: 600, color: net > thresholdMismatch ? 'var(--success)' : net < -thresholdMismatch ? 'var(--danger)' : 'var(--ink-3)' }}>
+                        {net > thresholdMismatch ? '+' : ''}{sym}{formatNumber(net)}
                       </span>
                     </div>
                     <div style={{ position: 'relative', height: 10, background: 'var(--surface-3)', borderRadius: 5 }}>
@@ -247,7 +247,7 @@ export default function SettlePage({ params }: PageProps) {
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--success-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--success)', flexShrink: 0 }}>
                     {tr.toName.slice(0, 2).toUpperCase()}
                   </div>
-                  <span className="transfer-amount">{sym}{tr.amount.toLocaleString()}</span>
+                  <span className="transfer-amount">{sym}{formatNumber(tr.amount)}</span>
                 </div>
               ))}
             </div>
@@ -375,7 +375,7 @@ export default function SettlePage({ params }: PageProps) {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, marginLeft: 8 }}>
                       <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: 700, fontSize: 14, color: 'var(--success)' }}>
-                        {sym}{Number(record.amount).toLocaleString()}
+                        {sym}{formatNumber(Number(record.amount))}
                       </span>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button

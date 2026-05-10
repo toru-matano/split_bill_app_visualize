@@ -169,7 +169,8 @@
     "duplicateName": "グループに既に存在する名前です",
     "dangerZone": "危険ゾーン",
     "deleteGroup": "グループを削除",
-    "confirmDelete": "削除確認のためグループ名を入力",
+    "confirmDelete": "確認のため、グループ名を入力してください",
+    "deleteConfirmMsg": "このグループは完全に削除されます。元に戻せません。",
     "confirmDeletePlaceholder": "グループ名",
     "confirmDeleteBtn": "完全に削除",
     "back": "← 戻る"
