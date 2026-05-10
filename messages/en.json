@@ -152,15 +152,6 @@
     "back": "← Back",
     "backSimple": "Back"
   },
-  "lang": {
-    "label": "Language",
-    "en": "English",
-    "ja": "日本語",
-    "zh": "中文",
-    "ko": "한국어",
-    "fr": "Français",
-    "es": "Español"
-  },
   "settings": {
     "title": "Group settings",
     "groupName": "Group name",

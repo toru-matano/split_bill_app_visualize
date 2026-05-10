@@ -2,8 +2,11 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import enMessages from '@/messages/en.json'
 
-export const LOCALES = ['en', 'ja', 'zh', 'ko', 'fr', 'es'] as const
+export const LOCALES = ['en', 'ja', 'zh', 'ko', 'fr', 'es', 'ar'] as const
 export type Locale = typeof LOCALES[number]
+
+export const RTL_LOCALES: ReadonlyArray<Locale> = ['ar']
+export const isRTL = (locale: Locale) => RTL_LOCALES.includes(locale)
 
 type Messages = Record<string, Record<string, string>>
 
@@ -37,6 +40,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.setItem('splitmate_locale', l)
       document.documentElement.lang = l
+      document.documentElement.dir = isRTL(l) ? 'rtl' : 'ltr'
     }
   }, [])
 

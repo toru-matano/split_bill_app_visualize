@@ -2,8 +2,19 @@
 import { useI18n, LOCALES, type Locale } from '@/lib/i18n'
 
 const FLAG: Record<Locale, string> = {
-  en: 'EN', ja: 'JP', zh: 'CN', ko: 'KR', fr: 'FR', es: 'ES',
+  en: 'EN', ja: 'JP', zh: 'CN', ko: 'KR', fr: 'FR', es: 'ES', ar: 'AR',
 }
+
+const LANG_NAME: Record<Locale, string> = {
+  en: 'English',
+  ja: '日本語',
+  zh: '中文',
+  ko: '한국어',
+  fr: 'Français',
+  es: 'Español',
+  ar: 'العربية',
+}
+
 
 export default function LangPicker() {
   const { locale, setLocale, t } = useI18n()
@@ -23,7 +34,9 @@ export default function LangPicker() {
         aria-label={t('lang.label')}
       >
         {LOCALES.map(l => (
-          <option key={l} value={l}>{FLAG[l]} {t(`lang.${l}`)}</option>
+          <option key={l} value={l}>
+            <img src={`https://flagsapi.com/${FLAG[l]}/flat/64.png`}></img>
+            {LANG_NAME[l]}</option>
         ))}
       </select>
       <span style={{

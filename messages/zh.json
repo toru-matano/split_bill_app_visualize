@@ -152,15 +152,6 @@
     "back": "← 返回",
     "backSimple": "返回"
   },
-  "lang": {
-    "label": "语言",
-    "en": "English",
-    "ja": "日本語",
-    "zh": "中文",
-    "ko": "한국어",
-    "fr": "Français",
-    "es": "Español"
-  },
   "settings": {
     "title": "群组设置",
     "groupName": "群组名称",
