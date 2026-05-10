@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import type { Member } from '@/lib/supabase'
+import { fetchExpense, fetchGroupSplits } from '@/lib/expenses-api'
 import { CATEGORIES, CATEGORY_KEYS, type CategoryKey } from '@/lib/categories'
 import { getRates, SUPPORTED_CURRENCIES, CURRENCY_SYMBOLS, convert, formatNumber, thresholdMismatch } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
@@ -99,10 +99,13 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
     if (!group || members.length === 0) return
     ;(async () => {
       const memberList = members
-
       if (isEdit && expenseId) {
-        // ── Edit: pre-fill from existing expense ──
-        const { data: exp } = await supabase.from('expenses').select('*').eq('id', expenseId).single()
+        // ── Edit: fetch decrypted expense + splits in parallel ────────────
+        const [exp, { payers: payerRows, splits: splitRows }] = await Promise.all([
+          fetchExpense(expenseId),
+          fetchGroupSplits(group.id),
+        ])
+
         if (!exp) { setFetching(false); return }
 
         setLabel(exp.label ?? '')
@@ -113,49 +116,46 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
           setExpCurrency(exp.original_currency)
           setAmount(String(exp.original_amount))
         } else {
-          setExpCurrency(group!.currency)
+          setExpCurrency(group.currency)
           setAmount(String(exp.amount))
         }
 
-        // Pre-fill payers
-        const { data: payerRows } = await supabase
-          .from('expense_payers').select('member_id, amount').eq('expense_id', expenseId)
-        if (payerRows?.length) {
-          if (payerRows.length === 1) {
+        // ── Pre-fill payers (filter to this expense, amounts decrypted) ───
+        const thisPayerRows = payerRows.filter(p => p.expense_id === expenseId)
+        if (thisPayerRows.length) {
+          if (thisPayerRows.length === 1) {
             setPayerMode('single')
-            setSinglePayer(payerRows[0].member_id)
+            setSinglePayer(thisPayerRows[0].member_id)
           } else {
             setPayerMode('multiple')
             const payMap: Record<string, string> = {}
-            payerRows.forEach(p => { payMap[p.member_id] = String(p.amount) })
+            thisPayerRows.forEach(p => { payMap[p.member_id] = String(p.amount) })
             setMultiPayerAmounts(payMap)
           }
         }
 
-        // Pre-fill splits
-        const { data: splitRows } = await supabase
-          .from('expense_splits').select('member_id, amount').eq('expense_id', expenseId)
-        if (splitRows?.length) {
-          setEqualSet(new Set(splitRows.map((s: { member_id: string }) => s.member_id)))
-          const total = splitRows.reduce((s: number, x: { amount: number }) => s + Number(x.amount), 0)
-          const amtMap: Record<string, string> = {}
-          const pctMap: Record<string, string> = {}
-          splitRows.forEach((s: { member_id: string; amount: number }) => {
-            amtMap[s.member_id] = Number(s.amount).toFixed(2)
-            pctMap[s.member_id] = total > 0 ? ((Number(s.amount) / total) * 100).toFixed(1) : '0'
+        // ── Pre-fill splits (filter to this expense, amounts decrypted) ───
+        const thisSplitRows = splitRows.filter(s => s.expense_id === expenseId)
+        if (thisSplitRows.length) {
+          setEqualSet(new Set(thisSplitRows.map(s => s.member_id)))
+          const total = thisSplitRows.reduce((sum, s) => sum + s.amount, 0)
+          const amtMap: Record<string, string>  = {}
+          const pctMap: Record<string, string>  = {}
+          thisSplitRows.forEach(s => {
+            amtMap[s.member_id] = s.amount.toFixed(2)
+            pctMap[s.member_id] = total > 0 ? ((s.amount / total) * 100).toFixed(1) : '0'
           })
           memberList.forEach(m => { amtMap[m.id] ??= ''; pctMap[m.id] ??= '0' })
           setCustomAmounts(amtMap)
           setCustomPercents(pctMap)
 
-          // Detect whether splits are equal-ish or custom amounts
-          const amounts = splitRows.map((s: { amount: number }) => Number(s.amount)).filter((a: number) => a > 0)
-          const isEqual = amounts.length > 1 && amounts.every((a: number) => Math.abs(a - amounts[0]) < thresholdMismatch)
+          // Detect equal vs custom split
+          const amounts = thisSplitRows.map(s => s.amount).filter(a => a > 0)
+          const isEqual = amounts.length > 1 && amounts.every(a => Math.abs(a - amounts[0]) < 0.5)
           if (!isEqual) setSplitMode('amount')
         } else {
           // No splits yet — default to equal across all
-          const init = new Set(memberList.map(m => m.id))
-          setEqualSet(init)
+          setEqualSet(new Set(memberList.map(m => m.id)))
           const amtInit: Record<string, string> = {}
           const pctInit: Record<string, string> = {}
           memberList.forEach(m => { amtInit[m.id] = ''; pctInit[m.id] = (100 / memberList.length).toFixed(1) })
@@ -165,7 +165,7 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
 
       } else {
         // ── Add: sensible defaults ──
-        setExpCurrency(group!.currency)
+        setExpCurrency(group.currency)
         setEqualSet(new Set(memberList.map(x => x.id)))
         if (memberList.length > 0) setSinglePayer(memberList[0].id)
 
@@ -179,7 +179,7 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
         setMultiPayerAmounts(payInit)
       }
 
-      setRates(await getRates(group!.currency))
+      setRates(await getRates(group.currency))
       setFetching(false)
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps

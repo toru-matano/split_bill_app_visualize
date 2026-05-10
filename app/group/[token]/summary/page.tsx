@@ -1,9 +1,9 @@
 'use client'
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import type { Member } from '@/lib/supabase'
 import type { Transfer } from '@/lib/supabase'
-import { fetchGroupExpenses, type DecryptedExpense } from '@/lib/expenses-api'
+import { fetchGroupExpenses, fetchGroupSplits, type DecryptedExpense } from '@/lib/expenses-api'
 import { CATEGORIES } from '@/lib/categories'
 import { CURRENCY_SYMBOLS, formatNumber, thresholdMismatch } from '@/lib/fx'
 import { computeBalances, calculateSettlement } from '@/lib/settle'
@@ -28,23 +28,15 @@ export default function SummaryPage({ params }: PageProps) {
   useEffect(() => {
     if (!group || members.length === 0) return
     ;(async () => {
-      // ── Fetch decrypted expenses from the server API ───────────────────
-      const expList = await fetchGroupExpenses(group.id)
+      // ── Fetch decrypted expenses and splits from server API ───────────
+      const [expList, { payers: payerRows, splits: splitRows }] = await Promise.all([
+        fetchGroupExpenses(group.id),
+        fetchGroupSplits(group.id),
+      ])
       setExpenses(expList)
 
-      if (expList.length === 0) { 
-        setDataLoading(false); 
-        return
-      }
+      if (expList.length === 0) { setDataLoading(false); return }
 
-      const expIds = expList.map(e => e.id)
-      const [{ data: payers }, { data: splits }] = await Promise.all([
-        supabase.from('expense_payers').select('member_id, amount').in('expense_id', expIds),
-        supabase.from('expense_splits').select('member_id, amount').in('expense_id', expIds),
-      ])
-
-      const payerRows = payers ?? []
-      const splitRows = splits ?? []
       const bal = computeBalances(payerRows, splitRows, members)
       setNetBalances(bal)
       setTransfers(calculateSettlement({ payers: payerRows, splits: splitRows, members }))

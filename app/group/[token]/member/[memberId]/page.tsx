@@ -2,9 +2,9 @@
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { fetchGroupExpenses, type DecryptedExpense } from '@/lib/expenses-api'
+import { fetchGroupExpenses, fetchGroupSplits, type DecryptedExpense } from '@/lib/expenses-api'
 import { CATEGORIES } from '@/lib/categories'
-import { CURRENCY_SYMBOLS } from '@/lib/fx'
+import { CURRENCY_SYMBOLS, formatNumber } from '@/lib/fx'
 import { computeBalances } from '@/lib/settle'
 import { useI18n } from '@/lib/i18n'
 import { useGroup } from '@/hooks/useGroup'
@@ -30,29 +30,21 @@ export default function MemberDetailPage({ params }: PageProps) {
   useEffect(() => {
     if (!group || members.length === 0) return
     ;(async () => {
-      // ── Fetch decrypted expenses from server API ───────────────────────
-      const expList = await fetchGroupExpenses(group.id)
-      setExpenses(expList)
-
-      if (expList.length === 0) { setDataLoading(false); return }
-
-      const expIds = expList.map(e => e.id)
-
-      // Fetch all payers + splits in parallel — single pass for both the split list and balance
-      const [{ data: allPayers }, { data: allSplits }, { data: trs }] = await Promise.all([
-        supabase.from('expense_payers').select('member_id, amount').in('expense_id', expIds),
-        supabase.from('expense_splits').select('expense_id, member_id, amount').in('expense_id', expIds),
+      // ── Fetch all decrypted data from server API ───────────────────────
+      const [expList, { payers: allPayers, splits: allSplits }, { data: trs }] = await Promise.all([
+        fetchGroupExpenses(group.id),
+        fetchGroupSplits(group.id),
         supabase.from('transfer_records').select('*').eq('group_id', group.id)
           .or(`from_member_id.eq.${memberId},to_member_id.eq.${memberId}`)
           .order('transfer_date', { ascending: false }),
       ])
 
-      // Compute net balance using shared util
-      const bal = computeBalances(allPayers ?? [], allSplits ?? [], members)
-      setNetBalance(bal[memberId] ?? 0)
+      setExpenses(expList)
+      if (expList.length === 0) { setDataLoading(false); return }
 
-      // Member's split rows (for expense display)
-      setMemberSplits((allSplits ?? []).filter(s => s.member_id === memberId))
+      const bal = computeBalances(allPayers, allSplits, members)
+      setNetBalance(bal[memberId] ?? 0)
+      setMemberSplits(allSplits.filter(s => s.member_id === memberId))
       setTransfers((trs ?? []) as TransferRecord[])
       setDataLoading(false)
     })()
@@ -97,9 +89,9 @@ export default function MemberDetailPage({ params }: PageProps) {
           <p style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: 20 }}>{group.name}</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
             {[
-              { label: 'Paid',    value: sym + Math.round(totalPaid).toLocaleString(), color: 'var(--success)' },
-              { label: 'Owes',   value: sym + Math.round(totalOwes).toLocaleString(), color: 'var(--danger)' },
-              { label: 'Balance', value: (netBalance > 0 ? '+' : '') + sym + Math.round(Math.abs(netBalance)).toLocaleString(), color: netBalance > 0.5 ? 'var(--success)' : netBalance < -0.5 ? 'var(--danger)' : 'var(--ink-3)' },
+              { label: 'Paid',    value: sym + formatNumber(totalPaid), color: 'var(--success)' },
+              { label: 'Owes',   value: sym + formatNumber(totalOwes), color: 'var(--danger)' },
+              { label: 'Balance', value: (netBalance > 0 ? '+' : '') + sym + formatNumber(Math.abs(netBalance)), color: netBalance > 0.5 ? 'var(--success)' : netBalance < -0.5 ? 'var(--danger)' : 'var(--ink-3)' },
             ].map(stat => (
               <div key={stat.label} style={{ background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)', padding: '12px 8px', border: '1px solid var(--border)' }}>
                 <p style={{ fontSize: 10, color: 'var(--ink-3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{stat.label}</p>
@@ -114,14 +106,14 @@ export default function MemberDetailPage({ params }: PageProps) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span style={{ fontSize: 13, fontWeight: 600 }}>Net position</span>
             <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: netBalance > 0.5 ? '#dcfce7' : netBalance < -0.5 ? '#fee2e2' : 'var(--surface-2)', color: netBalance > 0.5 ? 'var(--success)' : netBalance < -0.5 ? 'var(--danger)' : 'var(--ink-3)' }}>
-              {netBalance > 0.5 ? `Gets back ${sym}${Math.round(netBalance).toLocaleString()}` : netBalance < -0.5 ? `Owes ${sym}${Math.round(Math.abs(netBalance)).toLocaleString()}` : 'Settled'}
+              {netBalance > 0.5 ? `Gets back ${sym}${formatNumber(netBalance)}` : netBalance < -0.5 ? `Owes ${sym}${formatNumber(Math.abs(netBalance))}` : 'Settled'}
             </span>
           </div>
           {[{ label: 'Paid', amount: totalPaid, color: 'var(--success)' }, { label: 'Owes', amount: totalOwes, color: 'var(--danger)' }].map(row => (
             <div key={row.label} style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                 <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{row.label}</span>
-                <span style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--ink-2)' }}>{sym}{Math.round(row.amount).toLocaleString()}</span>
+                <span style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: 'var(--ink-2)' }}>{sym}{formatNumber(row.amount)}</span>
               </div>
               <div style={{ height: 6, background: 'var(--surface-3)', borderRadius: 3, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${(row.amount / maxBar) * 100}%`, background: row.color, borderRadius: 3, transition: 'width 0.4s ease' }} />
@@ -159,7 +151,7 @@ export default function MemberDetailPage({ params }: PageProps) {
                         <p style={{ fontSize: 11, color: 'var(--ink-3)' }}>{dateStr}</p>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        {splitRow && <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 13, fontWeight: 700, color: isPayer ? 'var(--success)' : 'var(--danger)' }}>{sym}{Math.round(amount - Number(splitRow.amount)).toLocaleString()}</p>}
+                        {splitRow && <p style={{ fontFamily: 'DM Mono, monospace', fontSize: 13, fontWeight: 700, color: isPayer ? 'var(--success)' : 'var(--danger)' }}>{sym}{formatNumber(amount - Number(splitRow.amount))}</p>}
                       </div>
                     </div>
                   )

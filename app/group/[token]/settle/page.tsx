@@ -2,6 +2,7 @@
 import { use, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { fetchGroupSplits } from '@/lib/expenses-api'
 import { computeBalances, settleFromBalances } from '@/lib/settle'
 import type { Transfer } from '@/lib/supabase'
 import { CURRENCY_SYMBOLS, formatNumber, thresholdMismatch } from '@/lib/fx'
@@ -79,22 +80,16 @@ export default function SettlePage({ params }: PageProps) {
     if (!group || members.length === 0) return
     if (members.length >= 2) { setFromMember(members[0].id); setToMember(members[1].id) }
     ;(async () => {
-      const { data: exps } = await supabase.from('expenses').select('id').eq('group_id', group.id)
-      const expIds = (exps ?? []).map((e: { id: string }) => e.id)
-
-      const [payersRes, splitsRes, trsRes] = await Promise.all([
-        expIds.length
-          ? supabase.from('expense_payers').select('member_id, amount').in('expense_id', expIds)
-          : Promise.resolve({ data: [] as { member_id: string; amount: number }[] }),
-        expIds.length
-          ? supabase.from('expense_splits').select('member_id, amount').in('expense_id', expIds)
-          : Promise.resolve({ data: [] as { member_id: string; amount: number }[] }),
-        supabase.from('transfer_records').select('*').eq('group_id', group.id).order('transfer_date', { ascending: false }),
+      // ── Fetch decrypted payers/splits + transfer history ───────────────
+      const [{ payers, splits }, { data: trsData }] = await Promise.all([
+        fetchGroupSplits(group.id),
+        supabase.from('transfer_records').select('*')
+          .eq('group_id', group.id).order('transfer_date', { ascending: false }),
       ])
 
-      const base = computeBalances(payersRes.data ?? [], splitsRes.data ?? [], members)
+      const base    = computeBalances(payers, splits, members)
+      const records = (trsData ?? []) as TransferRecord[]
       setBaseBalances(base)
-      const records: TransferRecord[] = (trsRes.data ?? []) as TransferRecord[]
       setTransferRecords(records)
       const net = applyTransferRecords(base, records)
       setNetBalances(net)
@@ -103,9 +98,9 @@ export default function SettlePage({ params }: PageProps) {
     })()
   }, [group, members, applyTransferRecords])
 
-  const loading = groupLoading || dataLoading
-  const sym = CURRENCY_SYMBOLS[group?.currency ?? 'JPY'] ?? '¥'
-  const maxAbs = Math.max(...Object.values(netBalances).map(Math.abs), 1)
+  const loading   = groupLoading || dataLoading
+  const sym       = CURRENCY_SYMBOLS[group?.currency ?? 'JPY'] ?? '¥'
+  const maxAbs    = Math.max(...Object.values(netBalances).map(Math.abs), 1)
   const memberName = (id: string) => members.find(m => m.id === id)?.name ?? id
 
   const handleSubmit = async () => {

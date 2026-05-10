@@ -22,14 +22,7 @@ async function resolveAndGuard(expenseId: string, groupToken?: string) {
 /** Decrypt a single expense_secure_data row and merge with a base expense row. */
 function mergeDecrypted(
   base: { id: string; group_id: string; paid_by: string; category: string; created_at: string },
-  secure: {
-    label: unknown
-    amount: unknown
-    original_amount: unknown
-    original_currency: unknown
-    exchange_rate: unknown
-    expense_date: unknown
-  } | null,
+  secure: Record<string, unknown> | null,
 ) {
   if (!secure) {
     // Secure row missing — return base with empty fields rather than crashing
@@ -41,11 +34,11 @@ function mergeDecrypted(
     label             : decryptIfPresent(secure.label as string) ?? '',
     amount            : parseFloat(decrypt(secure.amount as string)),
     expense_date      : decryptIfPresent(secure.expense_date as string),
-    original_amount   : decryptIfPresent(secure.original_amount as string)
+    original_amount   : secure.original_amount
                           ? parseFloat(decrypt(secure.original_amount as string))
                           : null,
     original_currency : decryptIfPresent(secure.original_currency as string),
-    exchange_rate     : decryptIfPresent(secure.exchange_rate as string)
+    exchange_rate     : secure.exchange_rate
                           ? parseFloat(decrypt(secure.exchange_rate as string))
                           : null,
   }
@@ -101,7 +94,9 @@ export async function GET(req: NextRequest) {
 
     const secureMap = new Map((secureRows ?? []).map(r => [r.expense_id, r]))
 
-    const result = baseRows.map(base => mergeDecrypted(base, secureMap.get(base.id) ?? null))
+    const result = baseRows.map(base =>
+      mergeDecrypted(base, (secureMap.get(base.id) ?? null) as Record<string, unknown> | null)
+    )
     return NextResponse.json(result)
 
   } catch (err) {
@@ -152,25 +147,42 @@ export async function POST(req: NextRequest) {
       })
     if (secureError) throw secureError
 
-    // Insert payers and splits (amounts are operational data, not PII)
-    const { error: payerError } = await db
-      .from('expense_payers')
-      .insert(
-        (payers as { memberId: string; amount: number }[]).map(p => ({
-          expense_id: expense.id,
-          member_id: p.memberId,
-          amount: p.amount,
-        }))
+    // 3. Base payer rows — member_id only, no amount
+    const payerList = payers as { memberId: string; amount: number }[]
+    const { error: payerError } = await db.from('expense_payers').insert(
+      payerList.map(p => ({ expense_id: expense.id, member_id: p.memberId }))
     )
     if (payerError) throw payerError
 
-    const splits = (splitAmong as string[]).map((memberId, i) => ({
-      expense_id: expense.id,
-      member_id: memberId,
+    // 4. Encrypted payer amounts
+    const { error: payerSecErr } = await db.from('expense_payer_secure_data').insert(
+      payerList.map(p => ({
+        expense_id : expense.id,
+        member_id  : p.memberId,
+        amount : encrypt(String(p.amount)),
+      }))
+    )
+    if (payerSecErr) throw payerSecErr
+
+    // 5. Base split rows — member_id only, no amount
+    const splitList = (splitAmong as string[]).map((memberId, i) => ({
+      memberId,
       amount: splitAmounts ? Number(splitAmounts[i]) : totalAmount / splitAmong.length,
     }))
-    const { error: splitError } = await db.from('expense_splits').insert(splits)
+    const { error: splitError } = await db.from('expense_splits').insert(
+      splitList.map(s => ({ expense_id: expense.id, member_id: s.memberId }))
+    )
     if (splitError) throw splitError
+
+    // 6. Encrypted split amounts
+    const { error: splitSecErr } = await db.from('expense_split_secure_data').insert(
+      splitList.map(s => ({
+        expense_id : expense.id,
+        member_id  : s.memberId,
+        amount : encrypt(String(s.amount)),
+      }))
+    )
+    if (splitSecErr) throw splitSecErr
 
     return NextResponse.json({ id: expense.id })
   } catch (err) {
@@ -220,24 +232,48 @@ export async function PUT(req: NextRequest) {
 
     // Replace payers and splits
     await Promise.all([
+      db.from('expense_payer_secure_data').delete().eq('expense_id', expenseId),
+      db.from('expense_split_secure_data').delete().eq('expense_id', expenseId),
       db.from('expense_payers').delete().eq('expense_id', expenseId),
       db.from('expense_splits').delete().eq('expense_id', expenseId),
     ])
 
+    // 4. Re-insert base payer rows
+    const payerList = payers as { memberId: string; amount: number }[]
     const { error: payerError } = await db.from('expense_payers').insert(
-      (payers as { memberId: string; amount: number }[]).map(p => ({
-        expense_id: expenseId, member_id: p.memberId, amount: p.amount,
-      }))
+      payerList.map(p => ({ expense_id: expenseId, member_id: p.memberId }))
     )
     if (payerError) throw payerError
 
-    const splits = (splitAmong as string[]).map((memberId, i) => ({
-      expense_id: expenseId,
-      member_id: memberId,
+    // 5. Re-insert encrypted payer amounts
+    const { error: payerSecErr } = await db.from('expense_payer_secure_data').insert(
+      payerList.map(p => ({
+        expense_id : expenseId,
+        member_id  : p.memberId,
+        amount : encrypt(String(p.amount)),
+      }))
+    )
+    if (payerSecErr) throw payerSecErr
+
+    // 6. Re-insert base split rows
+    const splitList = (splitAmong as string[]).map((memberId, i) => ({
+      memberId,
       amount: splitAmounts ? Number(splitAmounts[i]) : totalAmount / splitAmong.length,
     }))
-    const { error: splitError } = await db.from('expense_splits').insert(splits)
+    const { error: splitError } = await db.from('expense_splits').insert(
+      splitList.map(s => ({ expense_id: expenseId, member_id: s.memberId }))
+    )
     if (splitError) throw splitError
+
+    // 7. Re-insert encrypted split amounts
+    const { error: splitSecErr } = await db.from('expense_split_secure_data').insert(
+      splitList.map(s => ({
+        expense_id : expenseId,
+        member_id  : s.memberId,
+        amount : encrypt(String(s.amount)),
+      }))
+    )
+    if (splitSecErr) throw splitSecErr
 
     return NextResponse.json({ ok: true })
   } catch (err) {
@@ -258,7 +294,12 @@ export async function DELETE(req: NextRequest) {
     const guard = await resolveAndGuard(expenseId, groupToken)
     if (guard.error) return NextResponse.json({ error: guard.error }, { status: guard.status })
 
-    // Cascade delete in parallel, then remove the expense
+    // Delete secure rows first (FK constraints), then base rows
+    await Promise.all([
+      db.from('expense_payer_secure_data').delete().eq('expense_id', expenseId),
+      db.from('expense_split_secure_data').delete().eq('expense_id', expenseId),
+      db.from('expense_secure_data').delete().eq('expense_id', expenseId),
+    ])
     await Promise.all([
       db.from('expense_payers').delete().eq('expense_id', expenseId),
       db.from('expense_splits').delete().eq('expense_id', expenseId),
