@@ -201,7 +201,17 @@
     "subscribedHint": "지출이 변경될 때 알림을 받습니다",
     "unsubscribedHint": "지출이 추가되거나 편집될 때 알림 받기",
     "enableAriaLabel": "푸시 알림 활성화",
-    "disableAriaLabel": "푸시 알림 비활성화"
+    "disableAriaLabel": "푸시 알림 비활성화",
+    "expenseAdded": "새 지출이 추가되었습니다",
+    "expenseAddedBody": "{name}이(가) \"{label}\" 추가 — {amount}",
+    "expenseEdited": "지출이 수정되었습니다",
+    "expenseEditedBody": "\"{label}\"이(가) 편집되었습니다 — {amount}",
+    "expenseDeleted": "지출이 삭제되었습니다",
+    "expenseDeletedBody": "\"{label}\"이(가) 삭제되었습니다",
+    "memberAdded": "새 멤버가 참가했습니다",
+    "memberAddedBody": "{name}이(가) 그룹에 참가했습니다",
+    "transferAdded": "이체가 기록되었습니다",
+    "transferAddedBody": "{from} → {to}: {amount}"
   },
   "ad": {
     "label": "광고",

@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import type { Group, Member } from '@/lib/supabase'
 import { CURRENCY_SYMBOLS, SUPPORTED_CURRENCIES } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
+import { sendPush } from '@/lib/push-client'
 import LangPicker from '@/components/LangPicker'
 import PushToggle from '@/components/PushToggle'
 import { DeleteModal } from '@/components/PopupModal'
@@ -24,7 +25,7 @@ const CURRENCIES = SUPPORTED_CURRENCIES.map(c => ({ code: c, symbol: CURRENCY_SY
 export default function SettingsPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
   const router = useRouter()
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const [group, setGroup] = useState<Group | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [name, setName] = useState('')
@@ -84,6 +85,9 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
       const newMember = await res.json()   // API returns { id, name } (plaintext)
       setMembers(prev => [...prev, newMember])
       setNewMemberName('')
+      if (group) {
+        sendPush(group.id, { type: 'memberAdded', memberName: trimmed }, `/group/${token}`, locale)
+      }
     } else {
       const { error } = await res.json()
       setMemberError(error === 'Duplicate name' ? t('settings.duplicateName') : error)

@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import webpushLib from 'web-push'
 import { supabaseServer } from '@/lib/supabase-server'
 import { decrypt } from '@/lib/crypto'
+import { buildPushMessage, type PushEvent } from '@/lib/push-messages'
 
 const db = supabaseServer
 
@@ -31,15 +32,16 @@ async function sendWebPush(
 ): Promise<'sent' | 'stale' | 'error'> {
   const vapidPublicKey  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
   const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY
-  const vapidEmail      = process.env.VAPID_EMAIL ?? 'mailto:admin@splitmate.app'
+  const rawEmail        = process.env.VAPID_EMAIL ?? 'mailto:admin@splitmate.app'
+  const vapidEmail      = rawEmail.startsWith('mailto:') || rawEmail.startsWith('https://')
+    ? rawEmail
+    : `mailto:${rawEmail}`
 
   if (!vapidPublicKey || !vapidPrivateKey) {
     console.error('[push/send] VAPID keys missing — set NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY')
     return 'error'
   }
 
-  // Bug 4 fix: webpushLib is the correct default import from web-push (CJS pkg).
-  // Using the static import at the top of the file avoids the `.default` dance.
   let endpoint: string, p256dh: string, auth: string
   try {
     endpoint = decrypt(sub.endpoint_enc as Buffer)
@@ -56,10 +58,7 @@ async function sendWebPush(
     return 'sent'
   } catch (err: unknown) {
     const status = (err as { statusCode?: number })?.statusCode
-    if (status === 410 || status === 404) {
-      return 'stale'  // Browser unsubscribed — clean up
-    }
-    // Bug 5 fix: log all other errors so they're visible in server logs
+    if (status === 410 || status === 404) return 'stale'
     console.error(`[push/send] sendNotification failed for ${sub.subscription_id}:`, err)
     return 'error'
   }
@@ -67,12 +66,31 @@ async function sendWebPush(
 
 export async function POST(req: NextRequest) {
   try {
-    const { groupId, title, body, url } = await req.json()
+    const body = await req.json()
+    const { groupId, locale = 'en', url } = body
+
     if (!groupId || typeof groupId !== 'string') {
       return NextResponse.json({ error: 'Missing groupId' }, { status: 400 })
     }
 
-    // ── Fetch base subscription IDs for this group, then join to secure data ──
+    // ── Resolve title + body ──────────────────────────────────────────────
+    // New path: structured event object → translated server-side
+    // Legacy path: raw title/body strings (backwards compatible)
+    let title: string
+    let notifBody: string
+
+    if (body.event) {
+      const msg = buildPushMessage(body.event as PushEvent, locale)
+      title      = msg.title
+      notifBody  = msg.body
+    } else {
+      title      = body.title ?? ''
+      notifBody  = body.body  ?? ''
+    }
+
+    if (!title) return NextResponse.json({ ok: true, sent: 0 })
+
+    // ── Fetch subscriptions ───────────────────────────────────────────────
     const { data: baseSubs } = await db
       .from('push_subscriptions')
       .select('id')
@@ -81,7 +99,6 @@ export async function POST(req: NextRequest) {
     if (!baseSubs?.length) return NextResponse.json({ ok: true, sent: 0 })
 
     const subIds = baseSubs.map(s => s.id)
-
     const { data: secureSubs } = await db
       .from('push_subscription_secure_data')
       .select('subscription_id, endpoint_enc, p256dh_enc, auth_enc')
@@ -89,8 +106,8 @@ export async function POST(req: NextRequest) {
 
     if (!secureSubs?.length) return NextResponse.json({ ok: true, sent: 0 })
 
-    const payload = JSON.stringify({ title, body, url, tag: `expense-${groupId}` })
-    let sent = 0
+    const payload  = JSON.stringify({ title, body: notifBody, url, tag: `expense-${groupId}` })
+    let sent       = 0
     const staleIds: string[] = []
 
     await Promise.all(
@@ -101,15 +118,11 @@ export async function POST(req: NextRequest) {
       }),
     )
 
-    // ── Clean up stale subscriptions (cascade deletes secure rows too) ──────
     if (staleIds.length) {
-      await db
-        .from('push_subscriptions')
-        .delete()
-        .in('id', staleIds)
+      await db.from('push_subscriptions').delete().in('id', staleIds)
     }
 
-    console.log(`[push/send] groupId=${groupId} sent=${sent} stale=${staleIds.length} total=${secureSubs.length}`)
+    console.log(`[push/send] groupId=${groupId} locale=${locale} title="${title}" sent=${sent} stale=${staleIds.length}`)
     return NextResponse.json({ ok: true, sent })
   } catch (err) {
     console.error('[POST /api/push/send]', err)

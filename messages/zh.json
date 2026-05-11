@@ -201,7 +201,17 @@
     "subscribedHint": "当费用发生变动时接收通知",
     "unsubscribedHint": "接收费用添加或编辑的通知",
     "enableAriaLabel": "启用推送通知",
-    "disableAriaLabel": "禁用推送通知"
+    "disableAriaLabel": "禁用推送通知",
+    "expenseAdded": "新增了支出",
+    "expenseAddedBody": "{name} 添加了「{label}」— {amount}",
+    "expenseEdited": "支出已更新",
+    "expenseEditedBody": "「{label}」已被编辑 — {amount}",
+    "expenseDeleted": "支出已删除",
+    "expenseDeletedBody": "「{label}」已被删除",
+    "memberAdded": "新成员加入",
+    "memberAddedBody": "{name} 加入了群组",
+    "transferAdded": "已记录转账",
+    "transferAddedBody": "{from} → {to}: {amount}"
   },
   "ad": {
     "label": "广告",

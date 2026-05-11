@@ -201,7 +201,17 @@
     "subscribedHint": "支出が変更されたときに通知を受け取ります",
     "unsubscribedHint": "支出が追加または編集されたときに通知を受け取る",
     "enableAriaLabel": "プッシュ通知を有効にする",
-    "disableAriaLabel": "プッシュ通知を無効にする"
+    "disableAriaLabel": "プッシュ通知を無効にする",
+    "expenseAdded": "新しい支出が追加されました",
+    "expenseAddedBody": "{name}が「{label}」を追加 — {amount}",
+    "expenseEdited": "支出が更新されました",
+    "expenseEditedBody": "「{label}」が編集されました — {amount}",
+    "expenseDeleted": "支出が削除されました",
+    "expenseDeletedBody": "「{label}」が削除されました",
+    "memberAdded": "新しいメンバーが参加しました",
+    "memberAddedBody": "{name}がグループに参加しました",
+    "transferAdded": "送金が記録されました",
+    "transferAddedBody": "{from} → {to}: {amount}"
   },
   "ad": {
     "label": "広告",

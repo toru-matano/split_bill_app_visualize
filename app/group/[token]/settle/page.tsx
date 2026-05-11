@@ -7,6 +7,7 @@ import { computeBalances, settleFromBalances } from '@/lib/settle'
 import type { Transfer } from '@/lib/supabase'
 import { CURRENCY_SYMBOLS, formatNumber, thresholdMismatch } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
+import { sendPush } from '@/lib/push-client'
 import { useGroup } from '@/hooks/useGroup'
 import LangPicker from '@/components/LangPicker'
 import { DeleteModal } from '@/components/PopupModal'
@@ -38,7 +39,7 @@ const todayStr = () => new Date().toISOString().split('T')[0]
 export default function SettlePage({ params }: PageProps) {
   const { token } = use(params)
   const router = useRouter()
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const { loading: groupLoading, group, members } = useGroup(token)
   const [transfers, setTransfers] = useState<Transfer[]>([])
   const [transferRecords, setTransferRecords] = useState<TransferRecord[]>([])
@@ -120,6 +121,12 @@ export default function SettlePage({ params }: PageProps) {
         setSuccessMsg(`Recorded: ${memberName(fromMember)} → ${memberName(toMember)} ${sym}${amount}`)
         setShowSuccess(true)
         setAmount(''); setNote(''); setShowForm(false)
+        sendPush(group.id, {
+          type: 'transferAdded',
+          fromName: memberName(fromMember),
+          toName:   memberName(toMember),
+          amount:   `${sym}${Number(amount).toLocaleString()}`,
+        }, `/group/${token}`, locale)
       }
     } catch { }
     setSubmitting(false)

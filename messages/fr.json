@@ -201,7 +201,17 @@
     "subscribedHint": "Vous serez notifié lorsque les dépenses changent",
     "unsubscribedHint": "Être notifié lors de l'ajout ou modification de dépenses",
     "enableAriaLabel": "Activer les notifications push",
-    "disableAriaLabel": "Désactiver les notifications push"
+    "disableAriaLabel": "Désactiver les notifications push",
+    "expenseAdded": "Nouvelle dépense ajoutée",
+    "expenseAddedBody": "{name} a ajouté « {label} » — {amount}",
+    "expenseEdited": "Dépense mise à jour",
+    "expenseEditedBody": "« {label} » a été modifié — {amount}",
+    "expenseDeleted": "Dépense supprimée",
+    "expenseDeletedBody": "« {label} » a été supprimé",
+    "memberAdded": "Nouveau membre ajouté",
+    "memberAddedBody": "{name} a rejoint le groupe",
+    "transferAdded": "Virement enregistré",
+    "transferAddedBody": "{from} → {to} : {amount}"
   },
   "ad": {
     "label": "Publicité",

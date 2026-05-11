@@ -9,6 +9,7 @@ import { useI18n } from '@/lib/i18n'
 import { useGroup } from '@/hooks/useGroup'
 import LangPicker from '@/components/LangPicker'
 import { DeleteModal } from '@/components/PopupModal'
+import { sendPush } from '@/lib/push-client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -86,11 +87,14 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null)
 
   const deleteExpense = async (id: string) => {
+    const expenseLabel = deleteTarget?.label ?? ''
     setDeleting(id)
     router.push(`/group/${token}`)
     setDeleteTarget(null)
     await fetch(`/api/expenses?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token ?? '')}`, { method: 'DELETE' })
-    // setExpenses(prev => prev.filter(e => e.id !== id))
+    if (group) {
+      sendPush(group.id, { type: 'expenseDeleted', label: expenseLabel }, `/group/${token}`, locale)
+    }
     setDeleting(null)
   }
   // ─── Load group + members (+ expense data when editing) ───────────────────
@@ -310,18 +314,12 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
           ? undefined
           : members.find(m => m.id === (payerMode === 'single' ? singlePayer : payers[0]?.memberId))?.name ?? 'Someone'
 
-        fetch('/api/push/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            groupId: group.id,
-            title: isEdit ? 'Expense updated' : 'New expense added',
-            body: isEdit
-              ? `"${label.trim()}" was edited — ${currSym}${formatNumber(baseAmount)}`
-              : `${payerName} added "${label.trim()}" — ${currSym}${formatNumber(baseAmount)}`,
-            url: `/group/${token}`,
-          }),
-        }).catch(() => {})
+        const formattedAmount = `${currSym}${formatNumber(baseAmount)}`
+        if (isEdit) {
+          sendPush(group.id, { type: 'expenseEdited', label: label.trim(), amount: formattedAmount }, `/group/${token}`, locale)
+        } else {
+          sendPush(group.id, { type: 'expenseAdded', label: label.trim(), payerName: payerName ?? 'Someone', amount: formattedAmount }, `/group/${token}`, locale)
+        }
 
         setShowSuccess(true)
         setTimeout(() => router.push(`/group/${token}`), 1400)

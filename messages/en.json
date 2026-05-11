@@ -201,7 +201,17 @@
     "subscribedHint": "You'll get notified when expenses change",
     "unsubscribedHint": "Get notified when expenses are added or edited",
     "enableAriaLabel": "Enable push notifications",
-    "disableAriaLabel": "Disable push notifications"
+    "disableAriaLabel": "Disable push notifications",
+    "expenseAdded": "New expense added",
+    "expenseAddedBody": "{name} added \"{label}\" — {amount}",
+    "expenseEdited": "Expense updated",
+    "expenseEditedBody": "\"{label}\" was edited — {amount}",
+    "expenseDeleted": "Expense deleted",
+    "expenseDeletedBody": "\"{label}\" was removed",
+    "memberAdded": "New member joined",
+    "memberAddedBody": "{name} joined the group",
+    "transferAdded": "Transfer recorded",
+    "transferAddedBody": "{from} → {to}: {amount}"
   },
   "ad": {
     "label": "Advertisement",
