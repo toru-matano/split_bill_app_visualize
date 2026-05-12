@@ -10,6 +10,8 @@ import { useGroup } from '@/hooks/useGroup'
 import LangPicker from '@/components/LangPicker'
 import { DeleteModal } from '@/components/PopupModal'
 import { sendPush } from '@/lib/push-client'
+import { setPendingExpense, failPendingExpense } from '@/lib/optimistic-expenses'
+import type { OptimisticExpense } from '@/lib/optimistic-expenses'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -286,49 +288,90 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
   const handleSubmit = async () => {
     if (!canSubmit || !group || !payers || !splits) return
     setLoading(true)
-    try {
-      const commonPayload = {
-        payers,
-        splitAmong: splits.map(s => s.memberId),
-        splitAmounts: splits.map(s => s.amount),
-        label: label.trim(), category, expenseDate,
-        originalCurrency: isForeign && payerMode === 'single' ? expCurrency : null,
-        originalAmount: isForeign && payerMode === 'single' ? Number(amount) : null,
-        exchangeRate: isForeign && payerMode === 'single' ? (convert(1, expCurrency, baseCurrency, rates) ?? 1) : null,
-      }
 
-      const res = await fetch('/api/expenses', {
-        method: isEdit ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          isEdit
-            ? { ...commonPayload, expenseId, groupToken: token }
-            : { ...commonPayload, groupId: group.id }
-        ),
-      })
+    const commonPayload = {
+      payers,
+      splitAmong: splits.map(s => s.memberId),
+      splitAmounts: splits.map(s => s.amount),
+      label: label.trim(), category, expenseDate,
+      originalCurrency: isForeign && payerMode === 'single' ? expCurrency : null,
+      originalAmount: isForeign && payerMode === 'single' ? Number(amount) : null,
+      exchangeRate: isForeign && payerMode === 'single' ? (convert(1, expCurrency, baseCurrency, rates) ?? 1) : null,
+    }
 
-      if (res.ok) {
-        // Push notification — fire and forget
-        const sym = CURRENCY_SYMBOLS[group.currency] ?? group.currency
-        const payerName = isEdit
-          ? undefined
-          : members.find(m => m.id === (payerMode === 'single' ? singlePayer : payers[0]?.memberId))?.name ?? 'Someone'
-
-        const formattedAmount = `${currSym}${formatNumber(baseAmount)}`
-        if (isEdit) {
+    if (isEdit) {
+      // ── Edit path: still await (we need the updated data before showing it) ──
+      try {
+        const res = await fetch('/api/expenses', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...commonPayload, expenseId, groupToken: token }),
+        })
+        if (res.ok) {
+          const formattedAmount = `${currSym}${formatNumber(baseAmount)}`
           sendPush(group.id, { type: 'expenseEdited', label: label.trim(), amount: formattedAmount }, `/group/${token}`, locale)
+          setShowSuccess(true)
+          setTimeout(() => router.push(`/group/${token}`), 1400)
         } else {
-          sendPush(group.id, { type: 'expenseAdded', label: label.trim(), payerName: payerName ?? 'Someone', amount: formattedAmount }, `/group/${token}`, locale)
+          setLoading(false)
         }
-
-        setShowSuccess(true)
-        setTimeout(() => router.push(`/group/${token}`), 1400)
-      } else {
+      } catch {
         setLoading(false)
       }
-    } catch {
-      setLoading(false)
+      return
     }
+
+    // ── Add path: optimistic UI ───────────────────────────────────────────────
+    // Generate the UUID here so client and DB share the same id.
+    const optimisticId = crypto.randomUUID()
+
+    const payerMember = members.find(
+      m => m.id === (payerMode === 'single' ? singlePayer : payers[0]?.memberId)
+    ) ?? null
+
+    const optimisticExpense: OptimisticExpense = {
+      id: optimisticId,
+      group_id: group.id,
+      label: label.trim(),
+      amount: isForeign ? Number(amount) / (rates[expCurrency] ?? 1) : Number(amount),
+      category,
+      expense_date: expenseDate,
+      paid_by: payerMode === 'single' ? singlePayer : (payers[0]?.memberId ?? ''),
+      original_currency: isForeign ? expCurrency : null,
+      original_amount: isForeign ? Number(amount) : null,
+      exchange_rate: isForeign ? (convert(1, expCurrency, baseCurrency, rates) ?? 1) : null,
+      created_at: new Date().toISOString(),
+      // @ts-expect-error member is an enriched field added by loadExpenses
+      member: payerMember,
+      _optimisticStatus: 'pending',
+    }
+
+    // Stash in module singleton so GroupPage can pick it up after navigation
+    setPendingExpense(group.id, optimisticExpense)
+
+    // Navigate immediately — user sees group page with the optimistic row
+    router.push(`/group/${token}`)
+
+    // Fire POST in the background; no await here
+    const payerName = payerMember?.name ?? 'Someone'
+    const formattedAmount = `${currSym}${formatNumber(Number(amount))}`
+
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    fetch('/api/expenses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...commonPayload, id: optimisticId, groupId: group.id }),
+    }).then(res => {
+      if (res.ok) {
+        sendPush(group.id, { type: 'expenseAdded', label: label.trim(), payerName, amount: formattedAmount }, `/group/${token}`, locale)
+        // Realtime will fire an INSERT with the same id → GroupPage marks it confirmed
+      } else {
+        // Mark as failed so GroupPage removes the optimistic row
+        failPendingExpense(group.id, optimisticId)
+      }
+    }).catch(() => {
+      failPendingExpense(group.id, optimisticId)
+    })
   }
 
   // ─── Loading state ────────────────────────────────────────────────────────

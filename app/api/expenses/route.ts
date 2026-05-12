@@ -120,6 +120,18 @@ export async function POST(req: NextRequest) {
     const groupId: string = typeof body.groupId === 'string' ? body.groupId : ''
     if (!groupId) return NextResponse.json({ error: 'groupId required' }, { status: 400 })
 
+    // Accept a client-generated UUID so the optimistic row and the real DB row
+    // share the same id — React key stays stable, eliminating the reconciliation flash.
+    const clientId: string | null =
+      typeof body.id === 'string' && /^[0-9a-f-]{36}$/i.test(body.id) ? body.id : null
+
+    // Guard: reject duplicate submissions / replay attacks (cheap indexed PK lookup)
+    if (clientId) {
+      const { data: existing } = await db
+        .from('expenses').select('id').eq('id', clientId).maybeSingle()
+      if (existing) return NextResponse.json({ error: 'Duplicate expense id' }, { status: 409 })
+    }
+
     // Verify group exists
     const { data: grp } = await db.from('groups').select('id').eq('id', groupId).single()
     if (!grp) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
@@ -128,7 +140,7 @@ export async function POST(req: NextRequest) {
 
     const { data: expense, error: expError } = await db
       .from('expenses')
-      .insert({ group_id: groupId, paid_by: primaryPayer, category })
+      .insert({ ...(clientId ? { id: clientId } : {}), group_id: groupId, paid_by: primaryPayer, category })
       .select('id')
       .single()
     if (expError) throw expError

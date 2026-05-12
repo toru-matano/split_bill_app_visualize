@@ -1,6 +1,8 @@
 'use client'
 
 import { use, useEffect, useState, useCallback, useRef } from 'react'
+import { consumePendingExpense, failPendingExpense } from '@/lib/optimistic-expenses'
+import type { OptimisticExpense } from '@/lib/optimistic-expenses'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Group, Member, Expense } from '@/lib/supabase'
@@ -18,7 +20,7 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
   const { t } = useI18n()
   const [group, setGroup] = useState<Group | null>(null)
   const [members, setMembers] = useState<Member[]>([])
-  const [expenses, setExpenses] = useState<Expense[]>([])
+  const [expenses, setExpenses] = useState<(Expense | OptimisticExpense)[]>([])
   const [loading, setLoading] = useState(true)
   const [showShare, setShowShare] = useState(false)
   const [liveIndicator, setLiveIndicator] = useState(false)
@@ -70,6 +72,19 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
 
     // 3. Load expenses (uses membersRef to resolve names)
     await loadExpenses(grp.id)
+
+    // 4. Inject any optimistic row that arrived from the add-expense form.
+    //    The row uses the same UUID that will be sent to the DB, so when the
+    //    realtime INSERT fires loadExpenses() replaces it seamlessly.
+    const optimistic = consumePendingExpense(grp.id)
+    if (optimistic) {
+      setExpenses(prev => {
+        // Don't double-insert if realtime already beat us here
+        if (prev.some(e => e.id === optimistic.id)) return prev
+        return [optimistic, ...prev]
+      })
+    }
+
     setLoading(false)
   }, [loadExpenses])
 
@@ -81,14 +96,48 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
     const groupId = groupIdRef.current
     const channel = supabase
       .channel(`group-expenses-${groupId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `group_id=eq.${groupId}` }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `group_id=eq.${groupId}` }, (payload) => {
         setLiveIndicator(true)
         setTimeout(() => setLiveIndicator(false), 1500)
+
+        if (payload.eventType === 'INSERT') {
+          const incomingId = payload.new?.id as string | undefined
+          // Mark the matching optimistic row as confirmed before the full reload
+          // so the check icon flips to green with zero layout shift.
+          if (incomingId) {
+            setExpenses(prev => prev.map(e =>
+              e.id === incomingId
+                ? { ...e, _optimisticStatus: 'confirmed' } as OptimisticExpense
+                : e
+            ))
+          }
+        }
+
         loadExpenses(groupId)
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [group, loadExpenses])
+
+  // Poll for rollback signals from the background POST error handler.
+  // failPendingExpense() writes a status:'error' entry; we remove that row.
+  useEffect(() => {
+    if (!group) return
+    const iv = setInterval(() => {
+      const groupId = group.id
+      // Peek without consuming — consumePendingExpense deletes the entry
+      setExpenses(prev => {
+        const hasError = prev.some(
+          e => '_optimisticStatus' in e && (e as OptimisticExpense)._optimisticStatus === 'error'
+        )
+        if (!hasError) return prev
+        return prev.filter(
+          e => !('_optimisticStatus' in e && (e as OptimisticExpense)._optimisticStatus === 'error')
+        )
+      })
+    }, 300)
+    return () => clearInterval(iv)
+  }, [group])
 
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p className="text-muted">{t('loading.default')}</p></div>
@@ -186,7 +235,14 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
                 // const catLabel = t(`categories.${e.category}`) || cat.label
                 const isForeign = e.original_currency && e.original_currency !== group.currency
                 return (
-                  <div key={e.id} className="expense-item">
+                  <div
+                    key={e.id}
+                    className="expense-item"
+                    style={{
+                      opacity: '_optimisticStatus' in e && (e as OptimisticExpense)._optimisticStatus === 'pending' ? 0.6 : 1,
+                      transition: 'opacity 0.3s ease',
+                    }}
+                  >
                     <div className="expense-avatar" style={{ background: cat.color + '18', fontSize: 18 }}>{cat.emoji}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p className="expense-label">{e.label || 'Expense'}</p>
@@ -200,11 +256,33 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
                       </p>
                     </div>
                     <p className="expense-amount">{sym}{formatNumber(e.amount ?? 0)}</p>
+                    {/* ── Validation status icon ── */}
+                    {'_optimisticStatus' in e ? (
+                      <i
+                        className="fa-regular fa-circle-check"
+                        title={(e as OptimisticExpense)._optimisticStatus === 'confirmed' ? 'Saved' : 'Saving…'}
+                        style={{
+                          fontSize: 16,
+                          flexShrink: 0,
+                          transition: 'color 0.4s ease',
+                          color: (e as OptimisticExpense)._optimisticStatus === 'confirmed'
+                            ? 'var(--success)'
+                            : 'var(--ink-3)',
+                        }}
+                      />
+                    ) : (
+                      <i
+                        className="fa-regular fa-circle-check"
+                        title="Saved"
+                        style={{ fontSize: 16, flexShrink: 0, color: 'var(--success)' }}
+                      />
+                    )}
                     <div style={{ display: 'flex', gap: 6, marginLeft: 8, flexShrink: 0 }}>
                       <button
                         className="btn btn-ghost"
                         style={{ height: 32, padding: '0 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}
                         onClick={() => router.push(`/group/${token}/edit/${e.id}`)}
+                        disabled={'_optimisticStatus' in e && (e as OptimisticExpense)._optimisticStatus === 'pending'}
                       >
                         <i className="fa-solid fa-pen" style={{ fontSize: 11 }} /> {t('group.edit')}
                       </button>
