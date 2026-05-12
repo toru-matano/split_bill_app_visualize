@@ -31,9 +31,15 @@ export default function CreatePage() {
     setLoading(true)
     try {
       const res = await fetch('/api/groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), members, currency }) })
-      const { shareToken } = await res.json()
-      router.push(`/group/${shareToken}`)
-    } catch { setLoading(false) }
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? `Server error ${res.status}`)
+      if (!data.shareToken) throw new Error('No share token in response')
+      router.push(`/group/${data.shareToken}`)
+    } catch (err) {
+      console.error('[create group]', err)
+      setMemberError(err instanceof Error ? err.message : 'Failed to create group')
+      setLoading(false)
+    }
   }
 
   return (

@@ -35,7 +35,7 @@ export default function LangPicker() {
       >
         {LOCALES.map(l => (
           <option key={l} value={l}>
-            <img src={`https://flagsapi.com/${FLAG[l]}/flat/64.png`}></img>
+            {/* <img src={`https://flagsapi.com/${FLAG[l]}/flat/64.png`}></img> */}
             {LANG_NAME[l]}</option>
         ))}
       </select>

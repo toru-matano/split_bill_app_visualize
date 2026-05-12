@@ -15,12 +15,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { ValidationError, validateGroupInput } from '@/lib/validation'
 import { encrypt, decrypt, blindIndex } from '@/lib/crypto'
+import { checkGroupCreateLimit, RateLimitError } from '@/lib/rate-limit'
 import { nanoid } from 'nanoid'
 
 const db = supabaseServer
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate-limit by IP — 5 group creates per hour per IP
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+      req.headers.get('x-real-ip') ??
+      'unknown'
+    await checkGroupCreateLimit(ip)
+
     const body = await req.json()
     const { name, members, currency } = validateGroupInput(body)
 
@@ -58,6 +66,9 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     if (err instanceof ValidationError) {
       return NextResponse.json({ error: err.message }, { status: err.status })
+    }
+    if (err instanceof RateLimitError) {
+      return NextResponse.json({ error: err.message }, { status: 429 })
     }
     console.error('[POST /api/groups]', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

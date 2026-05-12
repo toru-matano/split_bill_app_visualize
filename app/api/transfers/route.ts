@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { groupToken, fromMemberId, toMemberId, amount, note, transferDate } = validateTransferInput(body)
 
-    checkMutationLimit(groupToken)
+    await checkMutationLimit(groupToken)
 
     const groupId = await resolveGroupId(groupToken)
     if (!groupId) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
@@ -73,7 +73,7 @@ export async function PUT(req: NextRequest) {
 
     const { groupToken, fromMemberId, toMemberId, amount, note, transferDate } = validateTransferInput(body)
 
-    checkMutationLimit(groupToken)
+    await checkMutationLimit(groupToken)
 
     const groupId = await resolveGroupId(groupToken)
     if (!groupId) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
@@ -110,7 +110,7 @@ export async function DELETE(req: NextRequest) {
     const groupToken  = searchParams.get('token') ?? ''
     if (!transferId || !groupToken) return NextResponse.json({ error: 'id and token required' }, { status: 400 })
 
-    checkMutationLimit(groupToken)
+    await checkMutationLimit(groupToken)
 
     const groupId = await resolveGroupId(groupToken)
     if (!groupId) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
