@@ -99,6 +99,15 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
     }
     setDeleting(null)
   }
+  // ─── Prefetch destination routes on mount ─────────────────────────────────
+  // Next.js only prefetches <Link> hrefs automatically. router.push() navigations
+  // download the chunk at tap-time (~60–120 ms delay). Calling router.prefetch()
+  // here means the chunk is already in the browser cache before the user taps.
+  useEffect(() => {
+    router.prefetch(`/group/${token}`)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
+
   // ─── Load group + members (+ expense data when editing) ───────────────────
 
   useEffect(() => {
@@ -185,8 +194,11 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
         setMultiPayerAmounts(payInit)
       }
 
-      setRates(await getRates(group.currency))
+      // Render the form immediately — rates are only needed when the user
+      // switches to a foreign currency, so we don't block on this fetch.
       setFetching(false)
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      getRates(group.currency).then(setRates)
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group, members, isEdit, expenseId])
@@ -442,9 +454,12 @@ export default function ExpenseForm({ mode }: { mode: ExpenseFormMode }) {
                 value={expCurrency}
                 onChange={e => {
                   setExpCurrency(e.target.value)
-                  getRates(group!.currency).then(setRates)
+                  // Rates may not be loaded yet if user switches currency very
+                  // quickly; re-fetch to ensure freshness (KV cache makes this fast).
+                  if (Object.keys(rates).length === 0) getRates(group!.currency).then(setRates)
                 }}
                 style={{ width: 90, flexShrink: 0 }}
+                title={Object.keys(rates).length === 0 ? 'Loading rates…' : undefined}
               >
                 {SUPPORTED_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>

@@ -4,11 +4,12 @@ import { getPushSubscription, unsubscribeFromPush, subscribeToPush } from '@/lib
 import { useI18n } from '@/lib/i18n'
 
 type Props = {
-  groupId: string
-  label?:  string
+  groupId:   string
+  label?:    string
+  onToggle?: (subscribed: boolean) => void
 }
 
-export default function PushToggle({ groupId, label }: Props) {
+export default function PushToggle({ groupId, label, onToggle }: Props) {
   const { t } = useI18n()
   const [supported,   setSupported]   = useState(false)
   const [subscribed,  setSubscribed]  = useState(false)
@@ -48,6 +49,7 @@ export default function PushToggle({ groupId, label }: Props) {
           await unsubscribeFromPush()
         }
         setSubscribed(false)
+        onToggle?.(false)
       } else {
         // Bug 1 fix: read NEXT_PUBLIC_ var here at call time, not at module level.
         // Next.js statically replaces process.env.NEXT_PUBLIC_* at build time,
@@ -70,6 +72,7 @@ export default function PushToggle({ groupId, label }: Props) {
           })
           if (res.ok) {
             setSubscribed(true)
+            onToggle?.(true)
           } else {
             // API rejected — clean up the browser subscription too
             await sub.unsubscribe()

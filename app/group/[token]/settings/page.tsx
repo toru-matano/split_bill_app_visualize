@@ -134,7 +134,14 @@ export default function SettingsPage({ params }: { params: Promise<{ token: stri
           {group && (
             <div>
               <label style={{ marginBottom: 10, display: 'block' }}>{t('settings.pushNotifications')}</label>
-              <PushToggle groupId={group.id} label={t('settings.pushNotificationsLabel')} />
+              <PushToggle
+                groupId={group.id}
+                label={t('settings.pushNotificationsLabel')}
+                onToggle={
+                  () => {}
+                  // setNotificationsEnabled
+                }
+              />
             </div>
           )}
           <button className="btn btn-primary" disabled={saving || !name.trim()} onClick={handleSave}>

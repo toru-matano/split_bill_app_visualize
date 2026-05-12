@@ -12,7 +12,7 @@ import { CURRENCY_SYMBOLS, formatNumber } from '@/lib/fx'
 import { useI18n } from '@/lib/i18n'
 import ShareSheet from '@/components/ShareSheet'
 import LangPicker from '@/components/LangPicker'
-import ExpenseForm from '@/components/ExpenseForm'
+import Link from 'next/link'
 
 export default function GroupPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -64,14 +64,23 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
     groupIdRef.current = grp.id
     saveTokenToRecent(grp.name, grp.share_token)
 
-    // 2. Fetch members via API route (server decrypts names)
-    const res = await fetch(`/api/groups/${tok}/members`)
-    const mems: Member[] = res.ok ? await res.json() : []
+    // 2 + 3. Fetch members and expenses concurrently — expenses don't depend on
+    // members at the network level; member names are resolved in-memory afterward.
+    const [membersJson, expenseList] = await Promise.all([
+      fetch(`/api/groups/${tok}/members`).then(r => r.ok ? r.json() as Promise<Member[]> : [] as Member[]),
+      // fetchGroupExpenses returns raw rows; we enrich with member names below
+      fetch(`/api/expenses?groupId=${encodeURIComponent(grp.id)}`).then(r => r.ok ? r.json() : []),
+    ])
+    const mems: Member[] = membersJson
     membersRef.current = mems
     setMembers(mems)
 
-    // 3. Load expenses (uses membersRef to resolve names)
-    await loadExpenses(grp.id)
+    // Enrich expenses with member objects now that both datasets are available
+    const enriched = expenseList.map((e: Expense) => ({
+      ...e,
+      member: mems.find(m => m.id === e.paid_by) ?? null,
+    }))
+    setExpenses(enriched as unknown as Expense[])
 
     // 4. Inject any optimistic row that arrived from the add-expense form.
     //    The row uses the same UUID that will be sent to the DB, so when the
@@ -89,6 +98,22 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
   }, [loadExpenses])
 
   useEffect(() => { if (token) load(token) }, [token, load])
+
+  // ─── Prefetch high-traffic routes ────────────────────────────────────────
+  // Prefetch /add on mount (always likely) and edit routes for the first few
+  // visible expenses once they load. This downloads chunks before the user taps,
+  // eliminating the ~60–120 ms on-demand chunk download delay.
+  useEffect(() => {
+    if (!token) return
+    router.prefetch(`/group/${token}/add`)
+    router.prefetch(`/group/${token}/settle`)
+  }, [token, router])
+
+  useEffect(() => {
+    if (!token || expenses.length === 0) return
+    // Prefetch edit routes for the 5 most recent expenses
+    expenses.slice(0, 5).forEach(e => router.prefetch(`/group/${token}/edit/${e.id}`))
+  }, [token, expenses, router])
 
   // Realtime: re-fetch expenses on any change (member names already in state)
   useEffect(() => {
@@ -189,15 +214,15 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
 
         {/* Menu buttons */}
         <div className="row" style={{ gap: 10 }}>
-          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => router.push(`/group/${token}/add`)}>
-            <i className="fa-solid fa-plus" style={{ fontSize: 13 }} /> {t('group.addExpense')}
-          </button>
+          <Link className="btn btn-primary" style={{ flex: 1, textDecoration: 'none' }} href={`/group/${token}/add`}>
+            <i className="fa-solid fa-plus" style={{ fontSize: 13,  }} /> {t('group.addExpense')}
+          </Link>
           {/* <button className="btn btn-secondary" style={{ flex: 1, width: 'auto' }} onClick={() => router.push(`/group/${token}/summary`)} disabled={expenses.length === 0}>
             <i className="fa-solid fa-chart-bar" style={{ fontSize: 13 }} /> {t('group.viewSummary')}
           </button> */}
-          <button className="btn btn-secondary" style={{ flex: 1, width: 'auto' }} onClick={() => router.push(`/group/${token}/settle`)} disabled={expenses.length === 0}>
+          <Link className="btn btn-secondary" style={{ flex: 1, width: 'auto', pointerEvents: expenses.length === 0 ? 'none' : 'auto', textDecoration: 'none' }} href={`/group/${token}/settle`} >
             <i className="fa-solid fa-scale-balanced" style={{ fontSize: 13 }} /> {t('group.settleUp')}
-          </button>
+          </Link>
         </div>
 
         <AdBanner />
@@ -278,14 +303,15 @@ export default function GroupPage({ params }: { params: Promise<{ token: string 
                       />
                     )}
                     <div style={{ display: 'flex', gap: 6, marginLeft: 8, flexShrink: 0 }}>
-                      <button
+                      <Link
                         className="btn btn-ghost"
-                        style={{ height: 32, padding: '0 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}
-                        onClick={() => router.push(`/group/${token}/edit/${e.id}`)}
-                        disabled={'_optimisticStatus' in e && (e as OptimisticExpense)._optimisticStatus === 'pending'}
+                        style={{ height: 32, padding: '0 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none',
+                           pointerEvents: '_optimisticStatus' in e && (e as OptimisticExpense)._optimisticStatus === 'pending' ? 'none' : 'auto'
+                        }}
+                        href={`/group/${token}/edit/${e.id}`}
                       >
                         <i className="fa-solid fa-pen" style={{ fontSize: 11 }} /> {t('group.edit')}
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 )

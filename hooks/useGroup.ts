@@ -31,16 +31,23 @@ export function useGroup(token: string | null): UseGroupResult {
     let cancelled = false
 
     ;(async () => {
-      // 1. Fetch group metadata (no PII — direct Supabase call is fine)
-      const { data: grp } = await supabase
-        .from('groups').select('*').eq('share_token', token).single()
+      // Run both fetches concurrently — they are fully independent.
+      // Promise.all rejects if either throws; both legs have their own error
+      // handling (Supabase returns null; the API route returns 404/500 which
+      // we handle below), so catastrophic failures are still caught by the
+      // outer try/catch implicit to the async IIFE.
+      const [{ data: grp }, res] = await Promise.all([
+        supabase.from('groups').select('*').eq('share_token', token).single(),
+        fetch(`/api/groups/${token}/members`),
+      ])
       if (cancelled) return
+
+      // Guard: unknown token — API route also returns 404, so both checks are
+      // consistent.  Do not call res.json() before this guard (issue A).
       if (!grp) { setState({ loading: false, group: null, members: [] }); return }
 
-      // 2. Fetch members via server API route — names are decrypted server-side
-      const res = await fetch(`/api/groups/${token}/members`)
-      if (cancelled) return
-
+      // res.ok covers 200; a 404 from the API (unknown token) is already
+      // handled above via !grp, but 5xx or network errors fall back to [].
       const members: Member[] = res.ok ? await res.json() : []
 
       setState({ loading: false, group: grp as Group, members })
